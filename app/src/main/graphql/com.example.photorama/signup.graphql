@@ -1,0 +1,12 @@
+mutation Signup($username: String!, $screenName: String!, $email: String!,
+                $password: String!, $firebaseToken: String!) {
+  Signup(username: $username, screenName: $screenName, email: $email,
+          password: $password, firebaseToken: $firebaseToken) {
+    id
+    username
+    screenName
+    jwt
+    following
+    followers
+  }
+}

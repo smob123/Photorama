@@ -1,0 +1,3 @@
+mutation unlikePost($userId: String!, $jwt: String!, $postId: String!) {
+  unlikePost(userId: $userId, jwt: $jwt, postId: $postId)
+}

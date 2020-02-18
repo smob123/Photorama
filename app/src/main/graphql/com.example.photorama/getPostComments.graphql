@@ -1,0 +1,12 @@
+query getPostComments($postId: String!, $startIndex: Int!, $endIndex: Int!) {
+  getPostComments(postId: $postId, startIndex: $startIndex, endIndex: $endIndex) {
+    id
+    postId
+    userId
+    userScreenName
+    comment
+    username
+    userAvatar
+    datetime
+  }
+}

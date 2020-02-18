@@ -1,0 +1,3 @@
+mutation updateFirebaseToken($userId: String!, $jwt: String!, $firebaseToken: String!) {
+    updateFirebaseToken(userId: $userId, jwt: $jwt, firebaseToken: $firebaseToken)
+}

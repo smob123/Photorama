@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "222867677321",
+    "firebase_url": "https://travel-app-da345.firebaseio.com",
+    "project_id": "travel-app-da345",
+    "storage_bucket": "travel-app-da345.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:222867677321:android:9535fafc64e88024766658",
+        "android_client_info": {
+          "package_name": "com.example.photorama"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "222867677321-87ijc31v5ei6fo7748n9fbibdasjs4q9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.photorama",
+            "certificate_hash": "b203746dec4ac10f65d1afc90c107c76cbf51bf7"
+          }
+        },
+        {
+          "client_id": "222867677321-oablukr5qo1id61h14l3nj6g7rfmrdft.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMUHNLb-95rbgMziHMCh4rkIv--q9hEls"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "222867677321-oablukr5qo1id61h14l3nj6g7rfmrdft.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

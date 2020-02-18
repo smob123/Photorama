@@ -1,0 +1,3 @@
+mutation deleteComment($userId: String!, $jwt: String!, $commentId: String!) {
+  deleteComment(userId: $userId, jwt: $jwt, commentId: $commentId)
+}

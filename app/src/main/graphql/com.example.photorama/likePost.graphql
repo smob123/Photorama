@@ -1,0 +1,3 @@
+mutation likePost($userId: String!, $jwt: String!, $postId: String!) {
+  likePost(userId: $userId, jwt: $jwt, postId: $postId)
+}

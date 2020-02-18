@@ -1,0 +1,12 @@
+mutation addComment($userId: String!, $jwt: String!, $postId: String!, $comment: String!) {
+  addComment(userId: $userId, jwt: $jwt, postId: $postId, comment: $comment) {
+    id
+    username
+    userScreenName
+    userAvatar
+    userId
+    postId
+    comment
+    datetime
+  }
+}

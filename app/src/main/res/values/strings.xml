@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Photorama</string>
+
+    <string name="title_activity_image_selection">ImageSelectionActivity</string>
+    <string name="dummy_button">Dummy Button</string>
+    <string name="dummy_content">DUMMY\nCONTENT</string>
+
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="title_activity_search">SearchActivity</string>
+    <string name="tab_text_1">Users</string>
+    <string name="tab_text_2">Hashtags</string>
+</resources>

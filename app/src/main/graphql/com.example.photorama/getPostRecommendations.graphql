@@ -1,0 +1,14 @@
+query getPostRecommendations($userId: String!, $jwt: String!, $startIndex: Int!, $endIndex: Int!) {
+  getPostRecommendations(userId: $userId, jwt: $jwt, startIndex: $startIndex, endIndex: $endIndex) {
+    id
+    image
+    description
+    datetime
+    userId
+    username
+    userScreenName
+    userAvatar
+    likes
+    comments
+  }
+}

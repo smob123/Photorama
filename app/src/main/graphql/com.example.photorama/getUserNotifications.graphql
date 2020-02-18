@@ -1,0 +1,10 @@
+query getUserNotifications($userId: String!, $jwt: String!, $startIndex: Int!, $endIndex: Int!) {
+  getUserNotifications(userId: $userId, jwt: $jwt, startIndex: $startIndex, endIndex: $endIndex) {
+    postId
+    followerName
+    message
+    userAvatar
+    postImage
+    datetime
+  }
+}

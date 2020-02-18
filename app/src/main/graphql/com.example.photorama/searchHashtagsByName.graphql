@@ -1,0 +1,7 @@
+query searchHashtagsByName($hashtag: String!) {
+  searchHashtagsByName(hashtag: $hashtag) {
+    id
+    hashtag
+    numberOfPosts
+  }
+}

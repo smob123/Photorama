@@ -1,0 +1,12 @@
+query getUserPosts($username: String!, $startIndex: Int!, $endIndex: Int!) {
+  getUserPosts(username: $username, startIndex: $startIndex, endIndex: $endIndex) {
+    id
+    userId
+    username
+    image
+    likes
+    comments
+    datetime
+    description
+  }
+}
