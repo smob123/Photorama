@@ -4,6 +4,9 @@ This is a social media app, similar to Instagram, which allows users to share im
 ## How to run
 Open the project in Android Studio, and click on run
 
+## Link to the server code
+https://github.com/smob123/Photorama-Server
+
 ## Screenshots
 <img src="https://user-images.githubusercontent.com/26127333/74720480-c0b8d000-529a-11ea-8abb-0167e2f7994a.png" width="30%" />
 <img src="https://user-images.githubusercontent.com/26127333/74720489-c4e4ed80-529a-11ea-8a53-4ece15347784.png" width="30%" />
