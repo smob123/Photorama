@@ -63,4 +63,20 @@ class TimelinePostAdapter(
         postList.addAll(newPosts)
         notifyDataSetChanged()
     }
+
+    /**
+     * this method is used by the child views, in order to notify the adapter that the user
+     * has deleted the post.
+     * @param postId the id of the post that the user has deleted
+     */
+    fun removeItem(postId: String) {
+        for (i in 0 until postList.size) {
+            val item = postList[i]
+            if (item.id == postId) {
+                postList.removeAt(i)
+                notifyDataSetChanged()
+                break
+            }
+        }
+    }
 }

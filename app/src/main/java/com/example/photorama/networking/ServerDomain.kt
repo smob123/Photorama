@@ -9,8 +9,6 @@ import okhttp3.HttpUrl
 
 class ServerDomain {
 
-    //https://photorama-server.herokuapp.com/graphql
-
     /**
      * returns the server's GraphQL's url as an HttpUrl
      * @return server's url

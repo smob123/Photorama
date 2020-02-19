@@ -11,11 +11,13 @@ import android.view.*
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.example.photorama.MainAppActivity
 import com.example.photorama.PostViewActivity
 import com.example.photorama.R
 import com.example.photorama.SearchActivity
+import com.example.photorama.adapters.TimelinePostAdapter
 import com.example.photorama.heplerObjects.CacheHandler
 import com.example.photorama.heplerObjects.PostParcelable
 import com.example.photorama.heplerObjects.PostType
@@ -516,7 +518,9 @@ class PostLayout(
                     val activity = this.context as Activity
                     if (activity is MainAppActivity) {
                         activity.runOnUiThread {
-                            (parent as ViewGroup).removeView(this@PostLayout)
+                            val recyclerView = parent.parent as RecyclerView
+                            val adapter = recyclerView.adapter as TimelinePostAdapter
+                            adapter.removeItem(postId)
                         }
                     } else {
                         activity.finish()

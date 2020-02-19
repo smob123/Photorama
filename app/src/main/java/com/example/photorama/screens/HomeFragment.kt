@@ -91,9 +91,11 @@ class HomeFragment : Fragment() {
                     }
 
                     // check if the result empty, and the adapter hasn't been initialized
-                    if (res.userTimeline!!.isEmpty() && adapter == null) {
-                        // display the text view to explain what this screen is for
-                        displayMessage()
+                    if (res.userTimeline!!.isEmpty()) {
+                        if (adapter == null || adapter.itemCount == 0) {
+                            // display the text view to explain what this screen is for
+                            displayMessage()
+                        }
 
                         // otherwise if the range starts from 0, or the result isn't empty and the
                         // adapter hasn't been initialized

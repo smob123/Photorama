@@ -564,12 +564,11 @@ class ProfileFragment : Fragment() {
                     } else {
                         // otherwise, if the adapter hasn't been initialized, or the adapter has not
                         // items
-                        if (image_gallery.adapter == null || image_gallery.adapter!!.itemCount == 0) {
+                        if (image_gallery?.adapter == null || image_gallery?.adapter!!.itemCount == 0) {
                             // display the text view
                             displayMessage()
                         }
                     }
-
                 }
             }
         )
