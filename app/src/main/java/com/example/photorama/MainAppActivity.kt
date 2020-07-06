@@ -9,9 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.bumptech.glide.Glide
 import kotlinx.android.synthetic.main.activity_main_app.*
-import com.example.photorama.networking.ClearImageCache
 import com.example.photorama.screens.ExploreFragment
 import com.example.photorama.screens.HomeFragment
 import com.example.photorama.screens.NotificationsFragment
@@ -39,10 +37,12 @@ class MainAppActivity : AppCompatActivity() {
 
         // add home fragment, and set it to be the active fragment
         homeFragment = HomeFragment()
-        supportFragmentManager
-            .beginTransaction()
-            .add(R.id.main_frame, homeFragment, "home")
-            .commit()
+        if(supportFragmentManager.fragments.isEmpty()) {
+            supportFragmentManager
+                .beginTransaction()
+                .add(R.id.main_frame, homeFragment, "home")
+                .commit()
+        }
 
         activeFragment = homeFragment
 
@@ -196,13 +196,6 @@ class MainAppActivity : AppCompatActivity() {
             intent.putExtra("image type", ImageSelectionActivity.ImageType.POST)
             startActivity(intent)
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // remove Glide's cached images
-        ClearImageCache(this@MainAppActivity).execute().get()
-        Glide.get(this@MainAppActivity).clearMemory()
     }
 
     override fun onBackPressed() {

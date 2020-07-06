@@ -17,7 +17,7 @@ import com.example.photorama.networking.ServerDomain
 
 class UserListAdapter(
     private val mContext: Context,
-    private var users: List<UserListItemType>
+    private val users: ArrayList<UserListItemType>
 ) : ArrayAdapter<UserListItemType>(mContext, 0, users),
     AdapterView.OnItemClickListener {
 
@@ -51,6 +51,11 @@ class UserListAdapter(
         }
 
         return view
+    }
+
+    fun setValues(newUsers: ArrayList<UserListItemType>) {
+        users.clear()
+        users.addAll(newUsers)
     }
 
     override fun onItemClick(parent: AdapterView<*>?, view: View?, p2: Int, id: Long) {}

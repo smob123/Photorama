@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.DialogInterface
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.get
 import androidx.recyclerview.widget.RecyclerView
@@ -12,7 +11,7 @@ import com.example.photorama.R
 import com.example.photorama.custom_ui.CommentView
 import com.example.photorama.heplerObjects.CacheHandler
 import com.example.photorama.heplerObjects.CommentType
-import com.example.photorama.networking.Mutations
+import com.example.photorama.viewModels.PostViewModel
 import kotlinx.android.synthetic.main.activity_post_view.view.*
 
 /**
@@ -22,7 +21,8 @@ import kotlinx.android.synthetic.main.activity_post_view.view.*
 
 class CommentsListAdapter(
     private val context: Context,
-    private val comments: ArrayList<CommentType>
+    private var comments: ArrayList<CommentType>,
+    private val viewModel: PostViewModel
 ) :
     RecyclerView.Adapter<CommentsListAdapter.MyHolder>() {
 
@@ -61,7 +61,6 @@ class CommentsListAdapter(
         }
     }
 
-
     /**
      * displays a dialog box when long pressing on the comment.
      * @param view the comment view that was long pressed
@@ -96,23 +95,7 @@ class CommentsListAdapter(
                         }
 
                         // send a delete comment request to the server
-                        Mutations(context)
-                            .deleteComment(
-                                commentId,
-                                onCompleted = { err, _ ->
-                                    if (err != null) {
-                                        activity.runOnUiThread {
-                                            Toast.makeText(
-                                                context,
-                                                "An error occurred while processing your " +
-                                                        "request",
-                                                Toast.LENGTH_LONG
-                                                    ).show()
-                                        }
-                                        return@deleteComment
-                                    }
-                                }
-                            )
+                        viewModel.deleteComment(commentId)
                     }
                 }
             }).show()
@@ -126,6 +109,13 @@ class CommentsListAdapter(
         // remove all views from the recycled view
         val view = holder.view
         view.removeAllViews()
+    }
+
+    /**
+     * sets the list of items.
+     */
+    fun setItems(newItems: ArrayList<CommentType>) {
+        comments = newItems
     }
 
     /**

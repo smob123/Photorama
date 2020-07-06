@@ -5,8 +5,12 @@
     <string name="dummy_button">Dummy Button</string>
     <string name="dummy_content">DUMMY\nCONTENT</string>
 
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <!-- profile screen -->
+    <string name="settings_button_title">Settings</string>
+    <string name="follow_button_title">Follow</string>
+    <string name="following_button_title">Following</string>
+
+    <!-- search activity -->
     <string name="title_activity_search">SearchActivity</string>
     <string name="tab_text_1">Users</string>
     <string name="tab_text_2">Hashtags</string>

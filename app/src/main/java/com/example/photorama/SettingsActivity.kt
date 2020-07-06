@@ -5,11 +5,14 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
 import android.widget.ArrayAdapter
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.example.photorama.heplerObjects.CacheHandler
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
+import com.example.photorama.viewModels.AuthViewModel
+import com.example.photorama.viewModels.AuthViewModelFactory
 import kotlinx.android.synthetic.main.activity_settings.*
-import com.example.photorama.networking.Mutations
 
 /**
  * @author Sultan
@@ -17,6 +20,8 @@ import com.example.photorama.networking.Mutations
  */
 
 class SettingsActivity : AppCompatActivity() {
+
+    private lateinit var viewModel: AuthViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,10 +31,33 @@ class SettingsActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "Settings"
 
+        // initialize the view model
+        val factory = AuthViewModelFactory(this)
+        viewModel = ViewModelProvider(this, factory).get(AuthViewModel::class.java)
+        // initialize the observers
+        initLogoutObserver()
+        initLogoutErrorObserver()
+
         // add settings list to UI
         addListItems()
         // set the on click listener for those settings
         setListOnClickListener()
+    }
+
+    private fun initLogoutObserver() {
+        viewModel.isLoggedOut().observe(this, Observer { isLoggedOut ->
+            if (isLoggedOut) {
+                val intent = Intent(this@SettingsActivity, LoginActivity::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                startActivity(intent)
+            }
+        })
+    }
+
+    private fun initLogoutErrorObserver() {
+        viewModel.getLogoutErrorMessage().observe(this, Observer { error ->
+            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show()
+        })
     }
 
     override fun onOptionsItemSelected(item: MenuItem?): Boolean {
@@ -67,23 +95,12 @@ class SettingsActivity : AppCompatActivity() {
                 .setTitle("Confirm")
                 .setMessage("Are you sure you want to logout?")
                 .setPositiveButton("Yes", DialogInterface.OnClickListener { dialog, which ->
-                    logout()
+                    viewModel.logout()
                 })
                 .setNegativeButton("No", DialogInterface.OnClickListener { dialog, which ->
                     dialog.dismiss()
                 })
                 .show()
         }
-    }
-
-    /**
-     * sends a logout request to the server, and removes the app's cache.
-     */
-    private fun logout() {
-        Mutations(this@SettingsActivity.applicationContext).logout(onCompleted = { err, res -> })
-        CacheHandler(this@SettingsActivity).deleteCacheDir()
-        val intent = Intent(this@SettingsActivity, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-        startActivity(intent)
     }
 }

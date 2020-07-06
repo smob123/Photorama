@@ -1,7 +1,7 @@
 package com.example.photorama.screens
 
+import android.annotation.SuppressLint
 import android.app.AlertDialog
-import android.content.DialogInterface
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -10,20 +10,22 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.photorama.*
+import com.example.photorama.ImageSelectionActivity
+import com.example.photorama.R
+import com.example.photorama.SettingsActivity
+import com.example.photorama.UserListActivity
 import com.example.photorama.adapters.GridViewAdapter
-import com.example.photorama.heplerObjects.CacheHandler
-import com.example.photorama.heplerObjects.PostType
-import com.example.photorama.networking.Mutations
-import com.example.photorama.networking.Queries
 import com.example.photorama.networking.ServerDomain
+import com.example.photorama.viewModels.UserInteractionsViewModel
+import com.example.photorama.viewModels.UserInteractionsViewModelFactory
+import com.example.photorama.viewModels.UserProfileViewModel
+import com.example.photorama.viewModels.UserProfileViewModelFactory
 import kotlinx.android.synthetic.main.profile_fragment.*
-import org.json.JSONArray
-import java.util.*
-import kotlin.collections.ArrayList
 
 /**
  * @author Sultan
@@ -31,22 +33,35 @@ import kotlin.collections.ArrayList
  */
 class ProfileFragment : Fragment() {
 
-    // the user's username
-    private lateinit var username: String
     // the user's id
     private lateinit var userId: String
-    // the user's screen name
-    private var screenName: String = "Screen Name"
-    // the url to the user's avatar
-    private var userAvatarUrl: String = "null"
+
+    // the user's username
+    private lateinit var username: String
+
+    // checks if this profile belongs to the user
+    private var mProfile = true
+
     // the list of people that the user follows
     private var following = ArrayList<String>()
+
     // the list of of the user's followers
     private var followers = ArrayList<String>()
+
     // the range of posts to fetch from the server
     private var postRange = IntRange(0, 10)
+
     // the amount of increment to increase the range by, in order to fetch more posts
-    private val RANGE_INCREMENT = 10
+    private val rangeIncrement = 10
+
+    // requests the profile's info from the server
+    private lateinit var userProfileViewModel: UserProfileViewModel
+
+    // sends follow/unfollow requests if this profile doesn't belong to the user
+    private lateinit var userInteractionsViewModel: UserInteractionsViewModel
+
+    // the recycler view's adapter
+    private lateinit var postAdapter: GridViewAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -60,56 +75,205 @@ class ProfileFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         val name = arguments?.getString("username")
 
-        // get the user's id, and username from the cache file
-        val jsonObj = CacheHandler(this@ProfileFragment.activity!!.applicationContext).getCache()
-        val mId = jsonObj.get("id").toString()
-        val mName = jsonObj.get("username").toString()
-        val mScreenName = jsonObj.get("screenName").toString()
-        val myFollowers = jsonObj.getJSONArray("followers")
-        val myFollowing = jsonObj.getJSONArray("following")
+        // initialize the view models
+        val factory = UserProfileViewModelFactory(requireActivity())
+        userProfileViewModel =
+            ViewModelProvider(requireActivity(), factory).get(UserProfileViewModel::class.java)
 
-        // check if a username wasn't passed as args, or if the username that's passed
-        // belongs to another account
-        if (name != null && name != mName) {
-            username = "@$name"
-        } else {
-            // initialize the variables to match what's in the cache
-            userId = mId
-            username = "@$mName"
-            screenName = mScreenName
+        val f = UserInteractionsViewModelFactory(requireActivity())
+        userInteractionsViewModel =
+            ViewModelProvider(requireActivity(), f).get(UserInteractionsViewModel::class.java)
 
-            for (i in 0 until myFollowers.length()) {
-                followers.add(myFollowers[i].toString())
-            }
+        // initialize the UI elements
+        initRecyclerView()
+        initUserInfoObserver()
+        initLoadingObserver()
+        initPostsObserver()
+        initPostDeletionObserver()
 
-            for (i in 0 until myFollowing.length()) {
-                following.add(myFollowing[i].toString())
-            }
+        // get the user's username
+        val mUser = userInteractionsViewModel.getUser()
 
-            // update the text views to display the user's cached info
-            username_txt_view.text = username
-            screen_name_txt_view.text = screenName
-            num_of_followers.text = followers.size.toString()
-            num_of_following.text = following.size.toString()
+        // compare it with the passed args if there are any
+        mProfile = name == null || name == mUser.username
 
-            // set the profile image's onClick listener
-            setProfileImageOnClickListener()
+        // update the ui based on whether this profile belongs to the user, or not
+        if (mProfile) {
+            username = mUser.username
             setEditProfileBtn()
+            setProfileImageOnClickListener()
+            userProfileViewModel.fetchUserInfo(
+                mUser.username,
+                postRange.first,
+                postRange.last,
+                true
+            )
+        } else {
+            username = name!!
+            action_btn.text = getString(R.string.follow_button_title)
+            initFollowObserver()
+            userProfileViewModel.fetchUserInfo(name, postRange.first, postRange.last, false)
         }
 
         // set the refresh layout listener
         refreshLayoutListener()
-
         // set the click listener for the views that show the number of followers, and following
         setFollowersClickListener()
         setFollowingClickListener()
-
         // set the on scroll listener for the scroll view
         setOnScrollListener()
+    }
 
-        // get user's profile info from the server
-        getUserInfo()
-        getUserPosts()
+    /**
+     * initialize an observer for network requests, which shows the progress indicator.
+     */
+    private fun initLoadingObserver() {
+        userProfileViewModel.isFetching().observe(requireActivity(), Observer { isFetching ->
+            refresh_layout.isRefreshing = isFetching!!
+        })
+    }
+
+    /**
+     * initialize the recycler view that contains the user's posts.
+     */
+    private fun initRecyclerView() {
+        // initialize the recycler view's adapter, and manager
+        val manager = GridLayoutManager(
+            activity!!,
+            3,
+            RecyclerView.VERTICAL,
+            false
+        )
+
+        postAdapter =
+            GridViewAdapter(
+                requireActivity(),
+                ArrayList()
+            )
+
+        image_gallery.adapter = postAdapter
+        image_gallery.layoutManager = manager
+    }
+
+    /**
+     * initializes an observer to check for changes to the user's info.
+     */
+    @SuppressLint("SetTextI18n")
+    private fun initUserInfoObserver() {
+        userProfileViewModel.getUserInfo().observe(requireActivity(), Observer { info ->
+            // show an error message if the request has failed
+            if (info == null) {
+                Toast.makeText(
+                    requireActivity(),
+                    "Couldn't connecting to the server",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@Observer
+            }
+
+            // set the user's avatar
+            if (info.avatar != "null") {
+                Glide.with(activity!!)
+                    .load("${ServerDomain().baseUrlString()}${info.avatar}")
+                    .into(avatar_img)
+            } else {
+                avatar_img.setImageResource(R.drawable.avatar)
+            }
+
+            // set the user's username, screen name, number of posts, etc...
+            userId = info.userId
+            username_txt_view.text = "@${info.username}"
+            screen_name_txt_view.text = info.screenName
+            num_of_posts.text = info.posts.size.toString()
+
+            following = ArrayList(info.following)
+            followers = ArrayList(info.followers)
+
+            num_of_following.text = following.size.toString()
+            num_of_followers.text = followers.size.toString()
+
+            // check if this profile doesn't belong to the user
+            val mUser = userInteractionsViewModel.getUser()
+
+            if (mUser.userId != info.userId) {
+                // update the follow button to reflect whether the user follows the current
+                // account, or not
+                updateFollowBtn()
+                setFollowBtnClickListener()
+            }
+        }
+        )
+    }
+
+    /**
+     * initializes an observer to check if the data in the recycler view's adapter has been updated.
+     */
+    private fun initPostsObserver() {
+        userProfileViewModel.getProfilePosts()
+            .observe(requireActivity(), Observer { posts ->
+                // set/update the adapter's content based on the the starting range
+                if (postRange.first == 0) {
+                    postAdapter.setItems(posts)
+                } else {
+                    postAdapter.addItems(posts)
+                }
+
+                postAdapter.notifyDataSetChanged()
+
+                // show/hide the recycler view based on whether the adapter is empty or not
+                if (postAdapter.itemCount > 0) {
+                    image_gallery_container.visibility = View.VISIBLE
+                    no_posts_text.visibility = View.GONE
+                } else {
+                    image_gallery_container.visibility = View.GONE
+                    no_posts_text.visibility = View.VISIBLE
+                }
+            }
+            )
+    }
+
+    /**
+     * removes posts that were deleted by the user from the timeline.
+     */
+    private fun initPostDeletionObserver() {
+        userProfileViewModel.getDeletedPostId().observe(requireActivity(), Observer { postId ->
+            for (i in 0 until postAdapter.itemCount) {
+                val post = postAdapter.getItems()[i]
+                if (post.id == postId) {
+                    postAdapter.removeItem(i)
+                    break
+                }
+            }
+
+            postAdapter.notifyDataSetChanged()
+        })
+    }
+
+    /**
+     * initializes an observer for follow/unfollow requests.
+     */
+    private fun initFollowObserver() {
+        userInteractionsViewModel.isInteractionSuccessful()
+            .observe(requireActivity(), Observer { isSuccessful ->
+                // check if the request was unsuccessful
+                if (!isSuccessful) {
+                    // reset the follow button's text, and click listener
+                    updateFollowBtn()
+                    setFollowBtnClickListener()
+                    return@Observer
+                }
+
+                // update the list of followers
+                val mUser = userInteractionsViewModel.getUser()
+                if (followers.contains(mUser.userId)) {
+                    followers.remove(mUser.userId)
+                } else {
+                    followers.add(mUser.userId)
+                }
+
+                // update the text view
+                num_of_followers.text = followers.size.toString()
+            })
     }
 
     /**
@@ -117,9 +281,9 @@ class ProfileFragment : Fragment() {
      */
     private fun refreshLayoutListener() {
         refresh_layout.setOnRefreshListener {
+            // reset the range, and fetch the last 10 posts from the server
             postRange = IntRange(0, 10)
-            getUserInfo()
-            getUserPosts()
+            userProfileViewModel.fetchUserInfo(username, postRange.first, postRange.last, false)
         }
     }
 
@@ -128,6 +292,7 @@ class ProfileFragment : Fragment() {
      */
     private fun setFollowingClickListener() {
         num_of_following_container.setOnClickListener {
+            // go to user list activity to show the list of people this user is following
             val intent = Intent(
                 this@ProfileFragment.activity!!.applicationContext,
                 UserListActivity::class.java
@@ -142,12 +307,13 @@ class ProfileFragment : Fragment() {
      */
     private fun setFollowersClickListener() {
         num_of_followers_container.setOnClickListener {
+            // go to user list activity to show this user's followers
             val intent = Intent(
-                this@ProfileFragment.activity!!.applicationContext,
+                activity!!.applicationContext,
                 UserListActivity::class.java
             )
             intent.putStringArrayListExtra("userIds", followers)
-            this@ProfileFragment.activity?.startActivity(intent)
+            activity!!.startActivity(intent)
         }
     }
 
@@ -155,9 +321,10 @@ class ProfileFragment : Fragment() {
      * changes the action button's text to "settings", and sets its on click listener.
      */
     private fun setEditProfileBtn() {
-        action_btn.text = "Settings"
+        action_btn.text = getString(R.string.settings_button_title)
 
         action_btn.setOnClickListener {
+            // go to the settings activity
             val intent = Intent(
                 this@ProfileFragment.activity!!,
                 SettingsActivity::class.java
@@ -168,149 +335,23 @@ class ProfileFragment : Fragment() {
     }
 
     /**
-     * checks if the user is following this account, and changes the action button's text to
-     * "following" if this account's id is in the user's cache.
-     */
-    private fun setFollowBtn() {
-        // check if this account's id is in the user's cache
-        val cacheHandler = CacheHandler(activity!!.applicationContext)
-        val jsonObj = cacheHandler.getCache()
-        val following = jsonObj.getJSONArray("following")
-        val isFollowing = following.toString().contains(userId)
-
-        // if it does, then update the text on the action button to "following"
-        if (isFollowing) {
-            updateFollowBtn()
-        }
-    }
-
-    /**
      * sets the on click listener for the follow button.
      */
     private fun setFollowBtnClickListener() {
+        // check if the user follows this account
+        val mUser = userInteractionsViewModel.getUser()
+        val isFollowed = followers.contains(mUser.userId)
         action_btn.setOnClickListener {
-            // update the button's text
-            updateFollowBtn()
-            // check if this account's id is in the user's cache
-            val cacheHandler = CacheHandler(activity!!.applicationContext)
-            val jsonObj = cacheHandler.getCache()
-            val following = jsonObj.getJSONArray("following")
-            val isFollowing = following.toString().contains(userId)
-
-            // if it does, send a "follow" mutation to the server
-            if (!isFollowing) {
-                followAccount()
+            if (!isFollowed) {
+                // if the user isn't following the account, then send a follow request
+                userInteractionsViewModel.followUser(userId)
+                action_btn.text = getString(R.string.following_button_title)
             } else {
-                // otherwise, send a "unfollow" mutation to the server
-                unfollowAccount()
+                // otherwise send an unfollow request
+                userInteractionsViewModel.unfollowUser(userId)
+                action_btn.text = getString(R.string.follow_button_title)
             }
         }
-    }
-
-    /**
-     * sends a "follow" mutation to the server.
-     */
-    private fun followAccount() {
-        Mutations(this@ProfileFragment.activity!!)
-            .follow(userId,
-                onCompleted = { err, res ->
-                    if (err != null) {
-                        // if an error occurs, then reset the follow button's text
-                        this@ProfileFragment.activity?.runOnUiThread {
-                            updateFollowBtn()
-                        }
-                        return@follow
-                    }
-
-                    if (res != null) {
-                        if (res.follow() == null) {
-                            // if an error occurs, then reset the follow button's text
-                            this@ProfileFragment.activity?.runOnUiThread {
-                                updateFollowBtn()
-                            }
-                            return@follow
-                        }
-
-                        val success = res.follow() as Boolean
-                        // if the request is successful
-                        if (success) {
-                            // get the list of accounts the user is following from the cache
-                            val cacheHandler = CacheHandler(activity!!.applicationContext)
-                            val jsonObj = cacheHandler.getCache()
-                            val following = jsonObj.getJSONArray("following")
-
-                            // add this account's id to it, and save it
-                            following.put(userId)
-                            jsonObj.put("following", following)
-                            cacheHandler.overWriteCache(jsonObj)
-
-                            // update the number of this account's followers
-                            this@ProfileFragment.activity!!.runOnUiThread {
-                                val numOfFollowers =
-                                    num_of_followers?.text.toString().toInt()
-                                num_of_followers?.text = (numOfFollowers + 1).toString()
-                            }
-                        } else {
-                            // if an error occurs, then reset the follow button's text
-                            this@ProfileFragment.activity?.runOnUiThread {
-                                updateFollowBtn()
-                            }
-                        }
-                    }
-                })
-    }
-
-    /**
-     * sends a "unfollow" mutation to the server
-     */
-    private fun unfollowAccount() {
-        Mutations(this@ProfileFragment.activity!!)
-            .unfollow(userId,
-                onCompleted = { err, res ->
-                    if (err != null) {
-                        // if an error occurs, then reset the follow button's text
-                        this@ProfileFragment.activity?.runOnUiThread {
-                            updateFollowBtn()
-                        }
-                        return@unfollow
-                    }
-
-                    if (res != null) {
-                        if (res.unfollow() == null) {
-                            // if an error occurs, then reset the follow button's text
-                            this@ProfileFragment.activity?.runOnUiThread {
-                                updateFollowBtn()
-                            }
-                            return@unfollow
-                        }
-
-                        val success = res.unfollow() as Boolean
-                        if (success) {
-                            // get the list of accounts the user is following from the cache
-                            val cacheHandler = CacheHandler(activity!!.applicationContext)
-                            val jsonObj = cacheHandler.getCache()
-                            val following = jsonObj.getJSONArray("following")
-
-                            // remove this user's id from it
-                            for (i in 0 until following.length()) {
-                                if (following[i] == userId) {
-                                    following.remove(i)
-                                    break
-                                }
-                            }
-                            // update the cache
-                            jsonObj.put("following", following)
-                            cacheHandler.overWriteCache(jsonObj)
-
-                            // upate the number of this account's followers
-                            this@ProfileFragment.activity!!.runOnUiThread {
-                                val numOfFollowers =
-                                    num_of_followers.text.toString().toInt()
-                                num_of_followers.text = (numOfFollowers - 1).toString()
-                            }
-                        }
-                    }
-                })
     }
 
     /**
@@ -318,12 +359,12 @@ class ProfileFragment : Fragment() {
      * user follows the account or not.
      */
     private fun updateFollowBtn() {
-        val btnText = action_btn.text.toString().toUpperCase(Locale.getDefault())
-
-        if (btnText == "FOLLOW") {
-            action_btn.text = "Following"
+        // check if the user follows this account
+        val mUser = userInteractionsViewModel.getUser()
+        if (followers.contains(mUser.userId)) {
+            action_btn.text = getString(R.string.following_button_title)
         } else {
-            action_btn.text = "Follow"
+            action_btn.text = getString(R.string.follow_button_title)
         }
     }
 
@@ -343,7 +384,7 @@ class ProfileFragment : Fragment() {
         val options = arrayOf("Change Image", "Remove Image")
         val dialogBuilder = AlertDialog.Builder(context)
         dialogBuilder.setTitle("Choose an action")
-        dialogBuilder.setItems(options, DialogInterface.OnClickListener { dialog, index ->
+        dialogBuilder.setItems(options) { _, index ->
             when (index) {
                 0 -> {
                     changeImage()
@@ -352,7 +393,7 @@ class ProfileFragment : Fragment() {
                     removeImage()
                 }
             }
-        }).show()
+        }.show()
     }
 
     /**
@@ -371,16 +412,8 @@ class ProfileFragment : Fragment() {
      * restores the avatar image to default.
      */
     private fun removeImage() {
-        // upload a null base64 string to remove the image from the server
-        Mutations(activity!!.applicationContext)
-            .deleteAvatar(onCompleted = { err, res ->
-                if (err != null) {
-                    return@deleteAvatar
-                }
-                if (res != null) {
-                    getUserInfo()
-                }
-            })
+        userProfileViewModel.removeAvatar()
+        avatar_img.setImageResource(R.drawable.avatar)
     }
 
     /**
@@ -399,283 +432,17 @@ class ProfileFragment : Fragment() {
 
                 val diff = lastChild.bottom - (scroll_view.height + scroll_view.scrollY)
 
+                // check if the user has scrolled to the bottom of the scroll view
                 if (diff == 0) {
+                    // increase the range of posts, and request the next set of posts
                     postRange = IntRange(
-                        postRange.first + RANGE_INCREMENT,
-                        postRange.last + RANGE_INCREMENT
+                        postRange.first + rangeIncrement,
+                        postRange.last + rangeIncrement
                     )
-                    getUserPosts()
+
+                    userProfileViewModel.fetchProfilePosts(postRange.first, postRange.last)
                 }
             }
         })
-    }
-
-    /**
-     * gets user's screen name, number of followers, and following from the server, and updates the
-     * UI accordingly.
-     */
-    private fun getUserInfo() {
-        val queryParam = username.substring(1, username.length)
-        Queries(this@ProfileFragment.activity!!.applicationContext)
-            .getUserByName(queryParam,
-                onCompleted = { err, res ->
-                    if (err != null) {
-                        this@ProfileFragment.activity?.runOnUiThread {
-                            Toast.makeText(
-                                this@ProfileFragment.activity?.applicationContext,
-                                "Couldn't retrieve user's info from the network",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        return@getUserByName
-                    }
-
-                    if (res != null) {
-                        if (res.userByName == null) {
-                            this@ProfileFragment.activity?.runOnUiThread {
-                                Toast.makeText(
-                                    this@ProfileFragment.activity?.applicationContext,
-                                    "Couldn't retrieve user's info from the network",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            return@getUserByName
-                        }
-
-                        // get the user's info
-                        val userInfo = res.userByName!!
-
-                        // update the list of followers, and following
-                        followers = ArrayList(userInfo.followers()!!)
-                        following = ArrayList(userInfo.following()!!)
-
-                        // get the number of followers, and following
-                        val numOfFollowers = followers.size
-                        val numOfFollowing = following.size
-
-                        // update the UI
-                        this@ProfileFragment.activity?.runOnUiThread {
-                            // get the number of posts, followers, and following
-                            val numOfPosts = userInfo.posts()!!.size
-                            // update the number of posts
-                            num_of_posts.text = numOfPosts.toString()
-                            // get the user's screen name, and id
-                            if (screenName == "Screen Name") {
-                                userId = userInfo.id().toString()
-                                // get the user's screen name
-                                screenName = userInfo.screenName().toString()
-
-                                // update the username, and screen name text views
-                                username_txt_view.text = username
-                                screen_name_txt_view.text = screenName
-
-                                // set the follow button's text, and click listener
-                                setFollowBtn()
-                                setFollowBtnClickListener()
-                            } else {
-                                // otherwise just update the number of followers, and following
-                                // in the cache
-                                val jsonObj =
-                                    CacheHandler(this@ProfileFragment.activity!!.applicationContext).getCache()
-
-                                jsonObj.put("followers", JSONArray(followers))
-                                jsonObj.put("following", JSONArray(following))
-                            }
-
-                            // update the number of followers, and following in the UI
-                            num_of_followers.text = numOfFollowers.toString()
-                            num_of_following.text = numOfFollowing.toString()
-
-                            // get the profile image from the network
-                            userAvatarUrl = userInfo.avatar().toString()
-                            if (userAvatarUrl != "null") {
-                                Glide.with(this@ProfileFragment.activity!!)
-                                    .load("${ServerDomain().baseUrlString()}$userAvatarUrl")
-                                    .into(avatar_img)
-                            } else {
-                                avatar_img.setImageResource(R.drawable.avatar)
-                            }
-                        }
-                    }
-                })
-    }
-
-    /**
-     * requests user's posts from the server.
-     */
-    private fun getUserPosts() {
-        val queryParam = username.substring(1, username.length)
-
-        // make the query request
-        Queries(activity!!).getUserPosts(
-            queryParam,
-            postRange.first,
-            postRange.last,
-            onCompleted = { err, result ->
-                this@ProfileFragment.activity?.let {
-                    // stop the refresh layout from refreshing
-                    if (refresh_layout.isRefreshing) {
-                        this@ProfileFragment.activity!!.runOnUiThread {
-                            refresh_layout.isRefreshing = false
-                        }
-                    }
-                }
-
-                if (err != null) {
-                    // display an error message if there is an error
-                    this@ProfileFragment.activity?.runOnUiThread {
-                        Toast.makeText(
-                            this@ProfileFragment.activity!!.applicationContext,
-                            "A network occurred while connecting to the network",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-
-                    return@getUserPosts
-                }
-
-                if (result != null) {
-                    if (result.userPosts == null) {
-                        // display an error message if there is an error
-                        this@ProfileFragment.activity?.runOnUiThread {
-                            Toast.makeText(
-                                this@ProfileFragment.activity!!.applicationContext,
-                                "A network occurred while connecting to the network",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-
-                        return@getUserPosts
-                    }
-
-                    // get the user's posts' info
-                    val posts = result.userPosts!!
-
-                    // check if the result is not empty
-                    if (posts.isNotEmpty()) {
-                        // if the adapter hasn't been initialized, or the range starts at 0
-                        if (image_gallery.adapter == null || postRange.first == 0) {
-                            // add a new adapter to the recycler view, and display the posts
-                            displayPosts(posts)
-                        } else {
-                            // otherwise, add more posts
-                            addMorePosts(posts)
-                        }
-                    } else {
-                        // otherwise, if the adapter hasn't been initialized, or the adapter has not
-                        // items
-                        if (image_gallery?.adapter == null || image_gallery?.adapter!!.itemCount == 0) {
-                            // display the text view
-                            displayMessage()
-                        }
-                    }
-                }
-            }
-        )
-    }
-
-    /**
-     * display a message telling the user that there are no posts for this profile.
-     */
-    private fun displayMessage() {
-        this@ProfileFragment.activity?.runOnUiThread {
-            // hide the recycler view from the layout, and replace it with a text view instead
-            image_gallery_container.visibility = View.GONE
-            no_posts_text.visibility = View.VISIBLE
-        }
-    }
-
-    /**
-     * displays the posts that are returned from the server.
-     * @param posts the list of the user's posts that are returned from the server
-     */
-    private fun displayPosts(posts: List<GetUserPostsQuery.GetUserPost>) {
-        // add the post's data to an array list of PostType
-        val postTypes = ArrayList<PostType>()
-
-        for (i in 0 until posts.size) {
-            val post = posts[i]
-            val postType = PostType(
-                post.id().toString(),
-                post.userId(),
-                post.username(),
-                screenName,
-                userAvatarUrl,
-                post.image(),
-                post.likes() as List<String>,
-                post.comments() as List<String>,
-                post.datetime(),
-                post.description().toString()
-            )
-
-            postTypes.add(postType)
-        }
-
-        this@ProfileFragment.activity?.let { activity ->
-            // initialize the adapter, and layout manager
-            val postAdapter = GridViewAdapter(
-                activity,
-                postTypes
-            )
-
-            val manager = GridLayoutManager(
-                activity,
-                3,
-                RecyclerView.VERTICAL,
-                false
-            )
-
-            activity.runOnUiThread {
-                // hide the text view from the layout, and replace it with a recycler view instead
-                image_gallery_container.visibility = View.VISIBLE
-                no_posts_text.visibility = View.GONE
-
-                image_gallery.layoutManager = manager
-                // set the post adapter, and attach it to the grid view
-                image_gallery.adapter = postAdapter
-            }
-        }
-    }
-
-    /**
-     * adds more posts to the recycler view.
-     * @param posts the list of posts to add to the view
-     */
-    private fun addMorePosts(posts: List<GetUserPostsQuery.GetUserPost>) {
-        // verify that the adapter has been initialized, and that the user hasn't gone to another
-        // activity
-        if (image_gallery == null || image_gallery.adapter == null) {
-            return
-        }
-
-        // get the adapter
-        val adapter = image_gallery.adapter as GridViewAdapter
-
-        // add the new posts
-        val postTypes = ArrayList<PostType>()
-
-        for (i in 0 until posts.size) {
-            val post = posts[i]
-            //val image = ClearImageCache(post.image()).execute().get()
-            val postType = PostType(
-                post.id().toString(),
-                post.userId(),
-                post.username(),
-                screenName,
-                userAvatarUrl,
-                post.image(),
-                post.likes() as List<String>,
-                post.comments() as List<String>,
-                post.datetime(),
-                post.description().toString()
-            )
-
-            postTypes.add(postType)
-        }
-
-        // add new items to the adapter
-        this@ProfileFragment.activity?.runOnUiThread {
-            adapter.addItems(postTypes)
-        }
     }
 }

@@ -6,11 +6,15 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.example.photorama.heplerObjects.ImageUriUtils
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.example.photorama.custom_ui.MCanvas
+import com.example.photorama.heplerObjects.ImageUriUtils
+import com.example.photorama.viewModels.UserProfileViewModel
+import com.example.photorama.viewModels.UserProfileViewModelFactory
 import kotlinx.android.synthetic.main.activity_image_cropper.*
-import com.example.photorama.networking.Mutations
 import java.io.ByteArrayOutputStream
 
 /**
@@ -24,6 +28,8 @@ class ImageCropperActivity : AppCompatActivity() {
     }
 
     private lateinit var mCanvas: MCanvas
+
+    private lateinit var viewModel: UserProfileViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,12 +51,33 @@ class ImageCropperActivity : AppCompatActivity() {
         if (bitmap != null) {
             if (postType == ImageType.AVATAR) {
                 setCanvas(bitmap, 500, 500)
+                val factory = UserProfileViewModelFactory(this)
+                viewModel = ViewModelProvider(this, factory).get(UserProfileViewModel::class.java)
+                initUploadAvatarObserver()
+                initUploadAvatarErrorObserver()
             } else if (postType == ImageType.POST) {
                 setCanvas(bitmap, 1080, 1080)
             }
         } else {
             finish()
         }
+    }
+
+    private fun initUploadAvatarObserver() {
+        viewModel.isAvatarUploaded().observe(this, Observer { isUploaded ->
+            if (isUploaded) {
+                // go back to the main app'a activity
+                val intent = Intent(applicationContext, MainAppActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                startActivity(intent)
+            }
+        })
+    }
+
+    private fun initUploadAvatarErrorObserver() {
+        viewModel.getErrorMessage().observe(this, Observer { error ->
+            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show()
+        })
     }
 
     /**
@@ -130,13 +157,6 @@ class ImageCropperActivity : AppCompatActivity() {
         // get the query's required parameters from the cache
         val base64 = Base64.encodeToString(imageBytes, Base64.DEFAULT)
         // execute the query
-        Mutations(this@ImageCropperActivity).uploadAvatar(base64, onCompleted = { err, res ->
-            if (res != null) {
-                // go back to the main app'a activity
-                val intent = Intent(applicationContext, MainAppActivity::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                startActivity(intent)
-            }
-        })
+        viewModel.uploadAvatar(base64)
     }
 }

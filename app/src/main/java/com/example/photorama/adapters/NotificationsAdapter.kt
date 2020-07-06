@@ -8,10 +8,10 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
-import com.example.photorama.GetUserNotificationsQuery
 import com.example.photorama.PostViewActivity
 import com.example.photorama.R
 import com.example.photorama.SearchActivity
+import com.example.photorama.heplerObjects.NotificationType
 import com.example.photorama.heplerObjects.TextUtils
 import com.example.photorama.networking.ServerDomain
 import java.util.*
@@ -23,7 +23,7 @@ import java.util.*
 
 class NotificationsAdapter(
     private val context: Context,
-    private val notifications: ArrayList<GetUserNotificationsQuery.GetUserNotification>
+    private var notifications: ArrayList<NotificationType>
 ) :
     RecyclerView.Adapter<NotificationsAdapter.MyHolder>() {
 
@@ -44,9 +44,9 @@ class NotificationsAdapter(
 
         // set the notification's icon, as the avatar of the user whom the notification came from
         val iconImageView = view.findViewById<ImageView>(R.id.notification_icon)
-        if (notification.userAvatar() != null) {
+        if (notification.userAvatar != null) {
             Glide.with(context)
-                .load("${ServerDomain().baseUrlString()}${notification.userAvatar()}")
+                .load("${ServerDomain().baseUrlString()}${notification.userAvatar}")
                 .into(iconImageView)
         } else {
             iconImageView.setImageResource(R.drawable.avatar)
@@ -54,30 +54,30 @@ class NotificationsAdapter(
 
         // set the notification's message text view
         val messageTextView = view.findViewById<TextView>(R.id.notification_message)
-        messageTextView.text = notification.message().toString()
+        messageTextView.text = notification.message
 
         // check if the notification is about a post, and display that post's image too
         val postImageView = view.findViewById<ImageView>(R.id.post_image)
-        if (notification.postImage() != null) {
-            Glide.with(context).load("${ServerDomain().baseUrlString()}${notification.postImage()}")
+        if (notification.type == NotificationType.TYPE.POST) {
+            Glide.with(context).load("${ServerDomain().baseUrlString()}${notification.postImage}")
                 .into(postImageView)
         }
 
         // display when the notification was sent
         val dateTextView = view.findViewById<TextView>(R.id.notification_date)
-        dateTextView.text = TextUtils(context).getTimeDiff(notification.datetime()!!)
+        dateTextView.text = TextUtils(context).getTimeDiff(notification.datetime)
 
         // set the on click listener for the notification
         view.setOnClickListener {
             // if the notification is about a post
-            if (notification.postId() != null) {
+            if (notification.type == NotificationType.TYPE.POST) {
                 // then go to it
-                goToPost(notification.postId()!!)
+                goToPost(notification.postId!!)
             }
             // otherwise if it's about a user
-            if (notification.followerName() != null) {
+            if (notification.type == NotificationType.TYPE.NEW_FOLLOWER) {
                 // then go to their profile
-                goToProfile(notification.followerName()!!)
+                goToProfile(notification.followerName!!)
             }
         }
     }
@@ -102,12 +102,15 @@ class NotificationsAdapter(
         context.startActivity(intent)
     }
 
+    fun setItems(newList: ArrayList<NotificationType>) {
+        notifications = newList
+    }
+
     /**
      * adds new notifications to the adapter.
      * @param newList the list of new items to add
      */
-    fun addItems(newList: ArrayList<GetUserNotificationsQuery.GetUserNotification>) {
+    fun addItems(newList: ArrayList<NotificationType>) {
         notifications.addAll(newList)
-        notifyDataSetChanged()
     }
 }

@@ -10,6 +10,7 @@ import android.widget.Filter
 import android.widget.TextView
 import com.example.photorama.R
 import com.example.photorama.SearchHashtagsByNameQuery
+import com.example.photorama.heplerObjects.HashtagType
 
 /**
  * @author Sultan
@@ -18,8 +19,8 @@ import com.example.photorama.SearchHashtagsByNameQuery
 
 class HashtagListAdapter(
     private val mContext: Context,
-    private val hashtags: List<SearchHashtagsByNameQuery.SearchHashtagsByName>
-) : ArrayAdapter<SearchHashtagsByNameQuery.SearchHashtagsByName>(mContext, 0, hashtags),
+    private val hashtags: ArrayList<HashtagType>
+) : ArrayAdapter<HashtagType>(mContext, 0, hashtags),
     AdapterView.OnItemClickListener {
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
@@ -34,15 +35,20 @@ class HashtagListAdapter(
 
         // update the text view that displayes the hashtag's name
         val hashtagTextView = view!!.findViewById<TextView>(R.id.hashtag_text_view)
-        val hashtag = hashtagItem.hashtag()
+        val hashtag = hashtagItem.hashtag
         hashtagTextView.text = hashtag
 
         // update the text view that displays the number of posts in the hashtag
         val numOfPostsTxtView = view.findViewById<TextView>(R.id.num_of_posts)
-        val numOfPosts = hashtagItem.numberOfPosts()
+        val numOfPosts = hashtagItem.numOfPosts
         numOfPostsTxtView.text = numOfPosts.toString()
 
         return view
+    }
+
+    fun setValues(newHashtags: ArrayList<HashtagType>) {
+        hashtags.clear()
+        hashtags.addAll(newHashtags)
     }
 
     override fun onItemClick(p0: AdapterView<*>?, p1: View?, p2: Int, p3: Long) {}
@@ -66,8 +72,8 @@ class HashtagListAdapter(
             override fun convertResultToString(resultValue: Any?): CharSequence {
                 if (resultValue != null) {
                     // return the name of the hashtag
-                    val result = resultValue as SearchHashtagsByNameQuery.SearchHashtagsByName
-                    return "${result.hashtag()}"
+                    val result = resultValue as HashtagType
+                    return result.hashtag
                 }
 
                 return super.convertResultToString(resultValue)

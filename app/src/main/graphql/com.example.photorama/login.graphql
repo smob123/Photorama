@@ -3,7 +3,9 @@ Login(username: $username, password: $password, firebaseToken: $firebaseToken) {
     id
     username
     screenName
+    avatar
     jwt
+    posts
     following
     followers
   }

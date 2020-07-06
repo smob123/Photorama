@@ -4,11 +4,14 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.example.photorama.adapters.UserListAdapter
-import com.example.photorama.heplerObjects.UserListItemType
+import com.example.photorama.viewModels.SearchViewModel
+import com.example.photorama.viewModels.SearchViewModelFactory
 import kotlinx.android.synthetic.main.activity_user_list.*
-import com.example.photorama.networking.Queries
 
 /**
  * @author Sultan.
@@ -16,6 +19,9 @@ import com.example.photorama.networking.Queries
  */
 
 class UserListActivity : AppCompatActivity() {
+
+    private lateinit var arrayAdapter: UserListAdapter
+    private lateinit var viewModel: SearchViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,14 +33,49 @@ class UserListActivity : AppCompatActivity() {
 
         // check if a non-empty list of user IDs was passed as an intent
         if (intent.extras == null || intent.extras!!.getStringArrayList("userIds") == null
-            || intent.extras!!.getStringArrayList("userIds").isEmpty()) {
+            || intent.extras!!.getStringArrayList("userIds").isEmpty()
+        ) {
             displayMessage()
             return
         }
 
+        val factory = SearchViewModelFactory(this)
+        viewModel = ViewModelProvider(this, factory).get(SearchViewModel::class.java)
+        initAdapter()
+        initUserSearchObserver()
+        initUserSearchErrorObserver()
+
         // get the list of user IDs to fetch their data from the server
         val usersIds = intent.extras!!.getStringArrayList("userIds")
-        getUsers(usersIds!!)
+        viewModel.searchUsersById(usersIds as ArrayList<String>)
+    }
+
+    private fun initAdapter() {
+        arrayAdapter = UserListAdapter(
+            this@UserListActivity,
+            ArrayList()
+        )
+        user_list.adapter = arrayAdapter
+
+        // set the onClick listener for the search list's custom adapter
+        user_list.setOnItemClickListener { _, _, position, _ ->
+            val item = arrayAdapter.getItem(position)
+            val intent = Intent(this@UserListActivity, SearchActivity::class.java)
+            intent.putExtra("username", item!!.username)
+            startActivity(intent)
+        }
+    }
+
+    private fun initUserSearchObserver() {
+        viewModel.getUsersSearchedById().observe(this, Observer { users ->
+            arrayAdapter.setValues(users)
+        })
+    }
+
+    private fun initUserSearchErrorObserver() {
+        viewModel.getUserSearchErrorMessage().observe(this, Observer { error ->
+            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show()
+        })
     }
 
     override fun onOptionsItemSelected(item: MenuItem?): Boolean {
@@ -55,67 +96,5 @@ class UserListActivity : AppCompatActivity() {
     private fun displayMessage() {
         no_users_text.visibility = View.VISIBLE
         user_list.visibility = View.GONE
-    }
-
-    /**
-     * fetch the users from the server.
-     * @param userIds the IDs of the users we want to display on this activity
-     */
-    private fun getUsers(userIds: ArrayList<String>) {
-        Queries(this@UserListActivity.applicationContext)
-            .getUsersByIds(userIds,
-                onCompleted = { err, res ->
-                    if (err != null) {
-                        return@getUsersByIds
-                    }
-
-                    if (res != null) {
-                        if (res.getUsersByIds != null && res.getUsersByIds.isNotEmpty()) {
-                            displayUsers(res.getUsersByIds)
-                        }
-                    }
-                })
-    }
-
-    /**
-     * displays the list of users.
-     * @param users the list of users that we got from the server
-     */
-    private fun displayUsers(users: List<GetUsersByIdsQuery.GetUsersById>) {
-        // create an array list of user objects to pass it to the list view's adapter
-        val usersList = ArrayList<UserListItemType>()
-
-        for (item in users) {
-            val user = UserListItemType(
-                item.id()!!,
-                item.username()!!,
-                item.screenName()!!,
-                item.avatar()!!
-            )
-            usersList.add(user)
-        }
-
-        this@UserListActivity.runOnUiThread {
-            val adapter = UserListAdapter(
-                this@UserListActivity,
-                usersList
-            )
-            user_list.adapter = adapter
-
-            setAdapterOnClickListener(adapter)
-        }
-    }
-
-    /**
-     * sets the onClick listener for the search list's custom adapter.
-     * @param adapter the custom adapter to add the listener to
-     */
-    private fun setAdapterOnClickListener(adapter: UserListAdapter) {
-        user_list.setOnItemClickListener { _, _, position, _ ->
-            val item = adapter.getItem(position)
-            val intent = Intent(this@UserListActivity, SearchActivity::class.java)
-            intent.putExtra("username", item!!.username)
-            startActivity(intent)
-        }
     }
 }

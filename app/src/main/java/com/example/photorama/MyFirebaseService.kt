@@ -4,12 +4,18 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
+import android.widget.Toast
 import androidx.core.content.ContextCompat
-import com.google.firebase.messaging.FirebaseMessagingService
-import com.google.firebase.messaging.RemoteMessage
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
 import com.example.photorama.heplerObjects.CacheHandler
 import com.example.photorama.heplerObjects.NotificationUtils
-import com.example.photorama.networking.Mutations
+import com.example.photorama.viewModels.AuthViewModel
+import com.example.photorama.viewModels.AuthViewModelFactory
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
 import org.json.JSONObject
 
 /**
@@ -23,6 +29,24 @@ class MyFirebaseService : FirebaseMessagingService() {
     private val LIKE_ID = 1
     private val COMMENT_ID = 2
     private val FOLLOW_ID = 3
+    private val viewModel: AuthViewModel
+
+    init {
+        val factory = AuthViewModelFactory(this)
+        viewModel = ViewModelProvider(
+            applicationContext as ViewModelStoreOwner,
+            factory
+        ).get(AuthViewModel::class.java)
+
+        initUploadTokenErrorObserver()
+    }
+
+    private fun initUploadTokenErrorObserver() {
+        viewModel.getFirebaseTokenUploadError()
+            .observe(applicationContext as LifecycleOwner, Observer { error ->
+                Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show()
+            })
+    }
 
     override fun onNewToken(newToken: String) {
         super.onNewToken(newToken)
@@ -40,8 +64,7 @@ class MyFirebaseService : FirebaseMessagingService() {
         // send the new token to the server if the user is logged in, otherwise the token will be
         // sent later when the user submits a login form successfully
         if (userId != null && jwt != null) {
-            Mutations(this).updateFirebaseToken(newToken,
-                onCompleted = { _, _ -> })
+            viewModel.updateFirebaseToken(newToken)
         }
     }
 

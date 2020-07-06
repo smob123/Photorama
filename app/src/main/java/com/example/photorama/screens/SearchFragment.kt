@@ -32,7 +32,7 @@ class SearchFragment : Fragment() {
 
         // initialize the view pager's adapter
         val sectionsPagerAdapter = SectionsPagerAdapter(
-            this@SearchFragment.activity!!.applicationContext,
+            requireActivity(),
             childFragmentManager
         )
 
@@ -48,7 +48,7 @@ class SearchFragment : Fragment() {
      */
     private fun setBackBtnListener() {
         back_btn.setOnClickListener {
-            this@SearchFragment.activity!!.onBackPressed()
+            requireActivity().onBackPressed()
         }
     }
 

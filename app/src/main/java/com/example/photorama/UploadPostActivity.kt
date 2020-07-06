@@ -8,10 +8,14 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Base64
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.example.photorama.heplerObjects.ImageUriUtils
+import com.example.photorama.viewModels.PostViewModel
+import com.example.photorama.viewModels.PostViewModelFactory
 import kotlinx.android.synthetic.main.activity_upload_post.*
-import com.example.photorama.networking.Mutations
 
 /**
  * @author Sultan
@@ -23,15 +27,49 @@ class UploadPostActivity : AppCompatActivity() {
     // the post's image
     private lateinit var bitmap: Bitmap
 
+    private lateinit var viewModel: PostViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_upload_post)
+
+        // initialize the view model
+        val factory = PostViewModelFactory(this)
+        viewModel = ViewModelProvider(this, factory).get(PostViewModel::class.java)
+        // initialize observers
+        initPostUploadObserver()
+        initPostUploadErrorObserver()
 
         onNavigationIconClick()
         showKeyBoard()
         setPreviewImage()
 
         upload_post_btn.setOnClickListener { uploadPost() }
+    }
+
+    /**
+     * observes whether uploading a post was successful or not.
+     */
+    private fun initPostUploadObserver() {
+        viewModel.isPostUploaded().observe(this, Observer { isUploaded ->
+            if (!isUploaded) {
+                return@Observer
+            }
+
+            // go back to the main app'a activity
+            val intent = Intent(applicationContext, MainAppActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            startActivity(intent)
+        })
+    }
+
+    /**
+     * checks if there are any errors when attempting to upload a post.
+     */
+    private fun initPostUploadErrorObserver() {
+        viewModel.getErrorMessage().observe(this, Observer { error ->
+            Toast.makeText(this, error.getMessage(), Toast.LENGTH_LONG).show()
+        })
     }
 
     /**
@@ -82,15 +120,6 @@ class UploadPostActivity : AppCompatActivity() {
         val description = post_description.text.toString()
 
         // send the post to the server
-        Mutations(this@UploadPostActivity).uploadPost(base64Image, description,
-            onCompleted = { err, res ->
-                if (res != null) {
-                    // go back to the main app'a activity
-                    val intent = Intent(applicationContext, MainAppActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    startActivity(intent)
-                }
-            }
-        )
+        viewModel.uploadPost(base64Image, description)
     }
 }

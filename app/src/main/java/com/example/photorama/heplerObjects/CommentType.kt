@@ -6,7 +6,7 @@ package com.example.photorama.heplerObjects
  * server requests.
  */
 
-class CommentType(
+data class CommentType(
     var commentId: String,
     var comment: String,
     var postId: String,

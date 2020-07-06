@@ -20,6 +20,7 @@
         android:usesCleartextTraffic="true">
         <activity android:name=".UserListActivity"></activity>
 
+        <!-- firebase service -->
         <service
             android:name=".MyFirebaseService"
             android:exported="false">
@@ -30,20 +31,21 @@
 
         <activity
             android:name=".SettingsActivity"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="fullSensor" />
         <activity
             android:name=".SearchActivity"
-            android:screenOrientation="portrait" />
+            android:configChanges="orientation|screenSize"
+            android:screenOrientation="fullSensor" />
         <activity
             android:name=".ImageCropperActivity"
-            android:screenOrientation="portrait"
+            android:screenOrientation="fullSensor"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
             android:name=".PostViewActivity"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="fullSensor" />
         <activity
             android:name=".UploadPostActivity"
-            android:screenOrientation="portrait"
+            android:screenOrientation="fullSensor"
             android:theme="@style/AppTheme.NoActionBar" />
         <activity
             android:name=".ImageSelectionActivity"
@@ -51,10 +53,11 @@
             android:label="@string/title_activity_image_selection" />
         <activity
             android:name=".MainAppActivity"
-            android:screenOrientation="portrait" />
+            android:configChanges="orientation|screenSize"
+            android:screenOrientation="fullSensor" />
         <activity
             android:name=".LoginActivity"
-            android:screenOrientation="portrait"
+            android:screenOrientation="fullSensor"
             android:theme="@style/splash_screen_them">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -71,7 +71,7 @@ class SearchActivity : AppCompatActivity() {
         // check if this is the root activity
         if (isTaskRoot) {
             // go back to the main app's activity
-            val intent = Intent(this@SearchActivity, MainAppActivity::class.java)
+            val intent = Intent(this, MainAppActivity::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
             startActivity(intent)
         } else {

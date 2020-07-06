@@ -10,14 +10,14 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.example.photorama.MainAppActivity
 import com.example.photorama.R
-import com.example.photorama.heplerObjects.CacheHandler
-import com.example.photorama.networking.Mutations
+import com.example.photorama.viewModels.AuthViewModel
+import com.example.photorama.viewModels.AuthViewModelFactory
 import com.google.firebase.iid.FirebaseInstanceId
 import kotlinx.android.synthetic.main.signup_fragment.*
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * @author Sultan
@@ -25,6 +25,9 @@ import org.json.JSONObject
  */
 
 class SignupFragment : Fragment() {
+
+    private lateinit var viewModel: AuthViewModel
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -36,6 +39,12 @@ class SignupFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // initialize view model
+        val factory = AuthViewModelFactory(requireActivity())
+        viewModel = ViewModelProvider(requireActivity(), factory).get(AuthViewModel::class.java)
+        initSignupObserver()
+        initErrorObserver()
+
         setUsernameChangeListeners()
         setScreenNameChangeListeners()
         setEmailChangeListeners()
@@ -43,6 +52,34 @@ class SignupFragment : Fragment() {
         setPasswordActionListener()
         setSignupBtnListener()
         setLoginBtnListener()
+    }
+
+    fun initSignupObserver() {
+        viewModel.getUserInfo().observe(requireActivity(), Observer { user ->
+            if (user == null) {
+                return@Observer
+            }
+
+            // move on to the app's main screen
+            val intent = Intent(
+                requireActivity(),
+                MainAppActivity::class.java
+            )
+            requireActivity().startActivity(intent)
+        })
+    }
+
+    /**
+     * observes error messages returned from the server.
+     */
+    private fun initErrorObserver() {
+        viewModel.getAuthErrorMessage().observe(requireActivity(), Observer { message ->
+            if (message == null) {
+                return@Observer
+            }
+
+            Toast.makeText(requireActivity(), message.getMessage(), Toast.LENGTH_LONG).show()
+        })
     }
 
     /**
@@ -256,78 +293,8 @@ class SignupFragment : Fragment() {
             val password = password_txt.text.toString()
 
             // send them to the server
-            sendToServer(username, email, screenName, password, fbRes.token)
+            viewModel.signup(username, email, screenName, password, fbRes.token)
         }
-    }
-
-    /**
-     * sends a signup mutation request to the server.
-     */
-    private fun sendToServer(
-        username: String,
-        email: String,
-        screenName: String,
-        password: String,
-        firebaseToken: String
-    ) {
-        Mutations(this@SignupFragment.activity!!)
-            .signup(username, email, screenName, password, firebaseToken,
-                onCompleted = { err, res ->
-                    if (err != null) {
-                        // possible error messages
-                        val emailErr =
-                            "The provided email address is already attached to an account"
-                        val usernameErr =
-                            "The provided username is already attached to an account"
-
-                        this@SignupFragment.activity?.runOnUiThread {
-                            // check if the error message contains one of the messages above
-                            val message: String
-                            if (err.contains(emailErr)) {
-                                message = emailErr
-                            } else if (err.contains(usernameErr)) {
-                                message = usernameErr
-                            } else {
-                                message = "Network Error"
-                            }
-
-                            // show the error message
-                            Toast.makeText(
-                                this@SignupFragment.activity!!, message, Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        return@signup
-                    }
-
-                    if (res != null) {
-                        // get the returned id, username, and jwt
-                        val id = res.Signup()!!.id()
-                        val uName = res.Signup()!!.username()
-                        val screenName = res.Signup()!!.screenName()
-                        val jwt = res.Signup()!!.jwt()
-                        val followers = res.Signup()!!.followers() as List<String>
-                        val following = res.Signup()!!.following() as List<String>
-
-                        // store them in chache
-                        val jsonObject = JSONObject()
-                        jsonObject.put("id", id)
-                        jsonObject.put("username", uName)
-                        jsonObject.put("screenName", screenName)
-                        jsonObject.put("jwt", jwt)
-                        jsonObject.put("followers", JSONArray(followers))
-                        jsonObject.put("following", JSONArray(following))
-
-                        CacheHandler(this@SignupFragment.activity!!.applicationContext)
-                            .overWriteCache(jsonObject)
-
-                        // move on to the app's main screen
-                        val intent = Intent(
-                            this@SignupFragment.activity!!.applicationContext,
-                            MainAppActivity::class.java
-                        )
-                        this@SignupFragment.activity!!.startActivity(intent)
-                    }
-                })
     }
 
     /**

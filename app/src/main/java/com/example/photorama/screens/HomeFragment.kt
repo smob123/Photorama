@@ -6,26 +6,29 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.photorama.GetUserTimelineQuery
 import com.example.photorama.R
 import com.example.photorama.adapters.TimelinePostAdapter
-import com.example.photorama.heplerObjects.PostType
-import com.example.photorama.networking.Queries
+import com.example.photorama.viewModels.TimelineViewModel
+import com.example.photorama.viewModels.TimelineViewModelFactory
 import kotlinx.android.synthetic.main.home_fragment.*
 
 /**
  * @author Sultan
- * home fragment
+ * timeline screen
  */
 
 class HomeFragment : Fragment() {
-
     // the range of posts to fetch from the server
     private var postListRange = IntRange(0, 5)
+
     // the amount of increment to increase the range by, in order to fetch more posts
-    private val RANGE_INCREMENT = 5
+    private val rangeIncrement = 5
+    private lateinit var timelineViewModel: TimelineViewModel
+    private lateinit var timelinePostAdapter: TimelinePostAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -37,9 +40,113 @@ class HomeFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        // initialize the view model
+        val factory = TimelineViewModelFactory(requireActivity())
+        timelineViewModel =
+            ViewModelProvider(requireActivity(), factory).get(TimelineViewModel::class.java)
 
-        getTimeline()
+        // initialize UI elements
+        initRecyclerView()
+        initLoadingViewModel()
+        initPostViewModel()
+        initPostDeletionObserver()
+        initNetworkErrorObserver()
+
+        // set refresh layout listener, and the on scroll listener
         setRefreshLayoutListener()
+        // fetch the first 5 posts in the timeline
+        timelineViewModel.fetchTimelinePosts(postListRange.first, postListRange.last, true)
+    }
+
+    /**
+     * initializes the loading state observer.
+     */
+    private fun initLoadingViewModel() {
+        timelineViewModel.isFetching().observe(requireActivity(), Observer { isFetching ->
+            refresh_layout.isRefreshing = isFetching!!
+        })
+    }
+
+    /**
+     * initializes the timeline posts' observer.
+     */
+    private fun initPostViewModel() {
+        timelineViewModel.getTimelinePosts()
+            .observe(requireActivity(), Observer { newPosts ->
+                // set, or add to the recycler view's adapter based on the post range
+                if (postListRange.first > 0) {
+                    // only add posts that haven't been added before
+                    for (newPost in newPosts) {
+                        var postExists = false
+                        for (existingPost in timelinePostAdapter.getItems()) {
+                            if (newPost.id == existingPost.id) {
+                                postExists = true
+                                break
+                            }
+                        }
+                        if (!postExists) {
+                            timelinePostAdapter.addItem(newPost)
+                        }
+                    }
+                } else {
+                    timelinePostAdapter.setItems(newPosts)
+                }
+
+                timelinePostAdapter.notifyDataSetChanged()
+
+                // set the visibility of the recycler view, and the message text view
+                if (timelinePostAdapter.itemCount > 0) {
+                    timeline.visibility = View.VISIBLE
+                    no_posts_text.visibility = View.GONE
+                } else {
+                    timeline.visibility = View.GONE
+                    no_posts_text.visibility = View.VISIBLE
+                }
+            }
+            )
+    }
+
+    /**
+     * removes posts that were deleted by the user from the timeline.
+     */
+    private fun initPostDeletionObserver() {
+        timelineViewModel.getDeletedPostId().observe(requireActivity(), Observer { postId ->
+            for (i in 0 until timelinePostAdapter.itemCount) {
+                val post = timelinePostAdapter.getItems()[i]
+                if (post.id == postId) {
+                    timelinePostAdapter.removeItem(i)
+                    break
+                }
+            }
+
+            timelinePostAdapter.notifyDataSetChanged()
+        })
+    }
+
+    /**
+     * observes network operation failure.
+     */
+    private fun initNetworkErrorObserver() {
+        timelineViewModel.getErrorMessage().observe(requireActivity(), Observer { error ->
+            Toast.makeText(requireActivity(), error.getMessage(), Toast.LENGTH_LONG).show()
+        })
+    }
+
+    /**
+     * initializes the recycler view to display the user's timeline.
+     */
+    private fun initRecyclerView() {
+        // initialize the recycler view's layout manager, and adapter
+        timeline.layoutManager =
+            LinearLayoutManager(requireActivity().applicationContext)
+
+        timelinePostAdapter =
+            TimelinePostAdapter(
+                requireActivity(),
+                ArrayList()
+            )
+
+        timeline.adapter = timelinePostAdapter
         setScrollListener()
     }
 
@@ -50,116 +157,10 @@ class HomeFragment : Fragment() {
         refresh_layout.setOnRefreshListener {
             // reset the range to fetch the latest 5 posts
             postListRange = IntRange(0, 5)
-            getTimeline()
-        }
-    }
-
-    private fun getTimeline() {
-        Queries(activity!!).getTimeLine(
-            postListRange.first, postListRange.last,
-            onCompleted = { err, res ->
-                // stop the refresh layout from refreshing
-                this@HomeFragment.activity?.runOnUiThread {
-                    if (refresh_layout.isRefreshing) {
-                        refresh_layout.isRefreshing = false
-                    }
-                }
-
-                if (err != null) {
-                    this@HomeFragment.activity?.runOnUiThread {
-                        Toast.makeText(
-                            this@HomeFragment.activity!!.applicationContext,
-                            "Couldn't fetch posts from the network",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    return@getTimeLine
-                }
-
-                if (res != null) {
-                    val adapter = timeline?.adapter
-                    // check if the result is null
-                    if (res.userTimeline == null) {
-                        this@HomeFragment.activity?.runOnUiThread {
-                            Toast.makeText(
-                                this@HomeFragment.activity!!.applicationContext,
-                                "Couldn't fetch posts from the network",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        return@getTimeLine
-                    }
-
-                    // check if the result empty, and the adapter hasn't been initialized
-                    if (res.userTimeline!!.isEmpty()) {
-                        if (adapter == null || adapter.itemCount == 0) {
-                            // display the text view to explain what this screen is for
-                            displayMessage()
-                        }
-
-                        // otherwise if the range starts from 0, or the result isn't empty and the
-                        // adapter hasn't been initialized
-                    } else if (postListRange.first == 0 || (res.userTimeline!!.isNotEmpty() && adapter == null)) {
-                        // add an adapter to the recycler view, and display the posts
-                        displayPosts(res.userTimeline!!)
-
-                        // otherwise, if the result is empty but the adapter has been initialized
-                    } else if ((res.userTimeline!!.isEmpty())
-                        && adapter != null
-                    ) {
-                        // remove the scroll listener from the recycler view
-                        this@HomeFragment.activity?.runOnUiThread {
-                            timeline.clearOnScrollListeners()
-                        }
-
-                        // otherwise, if the result isn't empty but the adapter has been initialized
-                    } else if (res.userTimeline!!.isNotEmpty() && adapter != null) {
-                        // add new items to the adapter
-                        addTimelineElements(res.userTimeline!!)
-                    }
-                }
-            }
-        )
-    }
-
-    /**
-     * initializes the recycler view's adapter, and displays posts.
-     * @param posts list of posts that will be shown
-     */
-    private fun displayPosts(posts: List<GetUserTimelineQuery.GetUserTimeline>) {
-        // store posts' data into an array list of PostType
-        val timelinePosts = ArrayList<PostType>()
-        for (post in posts) {
-            val postType = PostType(
-                post.id().toString(),
-                post.userId(),
-                post.username(),
-                post.userScreenName(),
-                post.userAvatar(),
-                post.image(),
-                post.likes() as List<String>,
-                post.comments() as List<String>,
-                post.datetime(),
-                post.description().toString()
-            )
-
-            timelinePosts.add(postType)
-        }
-
-        this@HomeFragment.activity?.runOnUiThread {
-            // set the visibility of the recycler view, and the message text view
-            timeline.visibility = View.VISIBLE
-            no_posts_text.visibility = View.GONE
-
-            // initialize the recycler view's layout manager, and adapter
-            timeline.layoutManager =
-                LinearLayoutManager(this@HomeFragment.activity!!.applicationContext)
-
-            timeline.adapter =
-                TimelinePostAdapter(
-                    this@HomeFragment.activity!!,
-                    timelinePosts
-                )
+            // fetch the first 5 posts in the timeline
+            timelineViewModel.fetchTimelinePosts(postListRange.first, postListRange.last, false)
+            // set the scroll listener
+            setScrollListener()
         }
     }
 
@@ -187,52 +188,18 @@ class HomeFragment : Fragment() {
                     isScrolling = false
                     // increase the range, and get more posts
                     postListRange = IntRange(
-                        postListRange.first + RANGE_INCREMENT,
-                        postListRange.last + RANGE_INCREMENT
+                        postListRange.first + rangeIncrement,
+                        postListRange.last + rangeIncrement
                     )
-                    getTimeline()
+
+                    // fetch the first 5 posts in the timeline
+                    timelineViewModel.fetchTimelinePosts(
+                        postListRange.first,
+                        postListRange.last,
+                        false
+                    )
                 }
             }
         })
-    }
-
-    /**
-     * adds new items to the recycler view's adapter.
-     * @param posts list of posts to add to the adapter
-     */
-    private fun addTimelineElements(posts: List<GetUserTimelineQuery.GetUserTimeline>) {
-        val timelinePosts = ArrayList<PostType>()
-
-        for (post in posts) {
-            val postType = PostType(
-                post.id().toString(),
-                post.userId(),
-                post.username(),
-                post.userScreenName(),
-                post.userAvatar(),
-                post.image(),
-                post.likes() as List<String>,
-                post.comments() as List<String>,
-                post.datetime(),
-                post.description().toString()
-            )
-
-            timelinePosts.add(postType)
-        }
-
-        this@HomeFragment.activity?.runOnUiThread {
-            val adapter = timeline.adapter as TimelinePostAdapter
-            adapter.addItems(timelinePosts)
-        }
-    }
-
-    /**
-     * display a message telling the user that there are posts on their timeline.
-     */
-    private fun displayMessage() {
-        this@HomeFragment.activity!!.runOnUiThread {
-            timeline.visibility = View.GONE
-            no_posts_text.visibility = View.VISIBLE
-        }
     }
 }

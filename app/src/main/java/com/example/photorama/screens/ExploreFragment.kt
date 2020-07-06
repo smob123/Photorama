@@ -7,15 +7,16 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.photorama.GetPostRecommendationsQuery
 import com.example.photorama.R
 import com.example.photorama.SearchActivity
 import com.example.photorama.adapters.GridViewAdapter
-import com.example.photorama.heplerObjects.PostType
-import com.example.photorama.networking.Queries
+import com.example.photorama.viewModels.ExploreViewModel
+import com.example.photorama.viewModels.ExploreViewModelFactory
 import kotlinx.android.synthetic.main.explore_fragment.*
 
 /**
@@ -26,8 +27,11 @@ import kotlinx.android.synthetic.main.explore_fragment.*
 class ExploreFragment : Fragment() {
     // range of posts to fetch from the network
     private var postRange = IntRange(0, 20)
+
     // the amount of increment to increase the range by, in order to fetch more comments
-    private val RANGE_INCREAMENT = 20
+    private val rangeIncrement = 20
+    private lateinit var postViewModel: ExploreViewModel
+    private lateinit var postAdapter: GridViewAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -39,10 +43,78 @@ class ExploreFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        val factory = ExploreViewModelFactory(requireActivity())
+        postViewModel =
+            ViewModelProvider(requireActivity(), factory).get(ExploreViewModel::class.java)
+
+        // initialize observers
+        initLoadingViewModel()
+        initErrorMessageObserver()
+        // initialize UI elements
+        initRecyclerView()
+        initPostViewModel()
+        // set listeners
         setRefreshLayoutListener()
         setSearchBarClickListener()
         addOnScrollListener()
-        getRecommendedPosts()
+        // fetch the first group of posts
+        postViewModel.fetchRecommendedPosts(postRange.first, postRange.last)
+    }
+
+    /**
+     * initializes the loading state observer.
+     */
+    private fun initLoadingViewModel() {
+        postViewModel.isFetching().observe(requireActivity(), Observer { isFetching ->
+            refresh_layout.isRefreshing = isFetching!!
+        })
+    }
+
+    private fun initErrorMessageObserver() {
+        postViewModel.getPostRecommendationErrorMessage()
+            .observe(requireActivity(), Observer { error ->
+                Toast.makeText(requireActivity(), error.getMessage(), Toast.LENGTH_LONG).show()
+            })
+    }
+
+    /**
+     * initializes the recommended posts' observer.
+     */
+    private fun initPostViewModel() {
+        postViewModel.getRecommendedPosts()
+            .observe(requireActivity(), Observer { posts ->
+                if (postRange.first > 0) {
+                    postAdapter.addItems(posts)
+                } else {
+                    postAdapter.setItems(posts)
+                }
+
+                postAdapter.notifyDataSetChanged()
+            }
+            )
+    }
+
+    /**
+     * initializes the recycler view to display the user's recommended posts.
+     */
+    private fun initRecyclerView() {
+        // initialize the adapter
+        postAdapter = GridViewAdapter(
+            this@ExploreFragment.activity!!,
+            ArrayList()
+        )
+
+        // initialize the manager
+        val manager = GridLayoutManager(
+            this@ExploreFragment.activity!!,
+            3,
+            RecyclerView.VERTICAL,
+            false
+        )
+
+        // add them to the recycler view
+        explore_posts.layoutManager = manager
+        explore_posts.adapter = postAdapter
     }
 
     /**
@@ -52,7 +124,8 @@ class ExploreFragment : Fragment() {
         refresh_layout.setOnRefreshListener {
             // reset the post range to 20 new posts
             postRange = IntRange(0, 20)
-            getRecommendedPosts()
+            // fetch the first group of posts
+            postViewModel.fetchRecommendedPosts(postRange.first, postRange.last)
         }
     }
 
@@ -64,122 +137,6 @@ class ExploreFragment : Fragment() {
             val activity = this@ExploreFragment.activity!!
             val intent = Intent(activity.applicationContext, SearchActivity::class.java)
             startActivity(intent)
-        }
-    }
-
-    /**
-     * get post recommendations from the server.
-     */
-    private fun getRecommendedPosts() {
-        Queries(this@ExploreFragment.activity!!)
-            .getPostRecommendations(
-                postRange.first, postRange.last,
-                onCompleted = { err, res ->
-
-                    // stop the refresh layout from refreshing
-                    this@ExploreFragment.activity?.let {
-                        if (refresh_layout.isRefreshing) {
-                            this@ExploreFragment.activity?.runOnUiThread {
-                                refresh_layout.isRefreshing = false
-                            }
-                        }
-                    }
-
-                    if (err != null) {
-                        // if the posts couldn't be retrieved, then display an error message
-                        this@ExploreFragment.activity?.runOnUiThread {
-                            Toast.makeText(
-                                this@ExploreFragment.activity?.applicationContext,
-                                "Couldn't retrieve posts from the network",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                        return@getPostRecommendations
-                    }
-
-                    if (res != null) {
-                        val posts = res.postRecommendations
-                        val adapter = explore_posts.adapter
-
-                        if (posts == null) {
-                            // if the posts couldn't be retrieved, then display an error message
-                            this@ExploreFragment.activity?.runOnUiThread {
-                                Toast.makeText(
-                                    this@ExploreFragment.activity?.applicationContext,
-                                    "Couldn't retrieve posts from the network",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                            return@getPostRecommendations
-                        }
-
-                        // if the server has returned a non-empty list, or the range starts with 0
-                        if ((posts.isNotEmpty() && adapter == null) || postRange.first == 0) {
-                            // initialize a new adapter for the recycler view
-                            displayPosts(posts)
-                            // otherwise if the server has returned a non-empty list,
-                            // and the adapter was already initialized
-                        } else if (posts.isNotEmpty() && adapter != null) {
-                            // add more posts to the adapter
-                            addMorePosts(posts)
-                            // otherwise if the server has returned less posts than the range, or
-                            // nothing at all
-                        } else if (posts.isEmpty() || posts.size < (postRange.last - postRange.first)) {
-                            // remove the on scroll listener from the recycler view,as this means
-                            // that the server has no more posts to send
-                            this@ExploreFragment.activity?.runOnUiThread {
-                                explore_posts.clearOnScrollListeners()
-                            }
-                        }
-                    }
-                })
-    }
-
-    /**
-     * initializes a new adapter for the recycler view.
-     * @param posts the list of posts to add to the adapter
-     */
-    private fun displayPosts(posts: List<GetPostRecommendationsQuery.GetPostRecommendation>) {
-        // store the posts as a list of postType
-        val postTypes = ArrayList<PostType>()
-
-        for (i in 0 until posts.size) {
-            val postType = PostType(
-                posts[i].id().toString(),
-                posts[i].userId(),
-                posts[i].username(),
-                posts[i].userScreenName(),
-                posts[i].userAvatar(),
-                posts[i].image(),
-                posts[i].likes() as List<String>,
-                posts[i].comments() as List<String>,
-                posts[i].datetime(),
-                posts[i].description().toString()
-            )
-
-            postTypes.add(postType)
-        }
-
-        if (this@ExploreFragment.activity != null) {
-            // initialize the adapter
-            val adapter = GridViewAdapter(
-                this@ExploreFragment.activity!!,
-                postTypes
-            )
-
-            // initialize the manager
-            val manager = GridLayoutManager(
-                this@ExploreFragment.activity!!,
-                3,
-                RecyclerView.VERTICAL,
-                false
-            )
-
-            // add them to the recycler view
-            this@ExploreFragment.activity?.runOnUiThread {
-                explore_posts.layoutManager = manager
-                explore_posts.adapter = adapter
-            }
         }
     }
 
@@ -208,45 +165,13 @@ class ExploreFragment : Fragment() {
                     isScrolling = false
                     // increase the range, and get more posts from the server
                     postRange = IntRange(
-                        postRange.first + RANGE_INCREAMENT,
-                        postRange.last + RANGE_INCREAMENT
+                        postRange.first + rangeIncrement,
+                        postRange.last + rangeIncrement
                     )
 
-                    getRecommendedPosts()
+                    postViewModel.fetchRecommendedPosts(postRange.first, postRange.last)
                 }
             }
         })
-    }
-
-    /**
-     * adds more posts to the recycler view's adapter.
-     * @param newPots the list of new posts to add
-     */
-    private fun addMorePosts(newPots: List<GetPostRecommendationsQuery.GetPostRecommendation>) {
-        // store the posts as a list of postType
-        val posts = ArrayList<PostType>()
-
-        for (post in newPots) {
-            val postType = PostType(
-                post.id().toString(),
-                post.userId(),
-                post.username(),
-                post.userScreenName(),
-                post.userAvatar(),
-                post.image(),
-                post.likes() as List<String>,
-                post.comments() as List<String>,
-                post.datetime(),
-                post.description().toString()
-            )
-
-            posts.add(postType)
-        }
-
-        // add them to the adapter
-        this@ExploreFragment.activity?.runOnUiThread {
-            val adapter = explore_posts.adapter as GridViewAdapter
-            adapter.addItems(posts)
-        }
     }
 }

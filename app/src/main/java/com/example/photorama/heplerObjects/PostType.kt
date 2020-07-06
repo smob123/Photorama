@@ -6,7 +6,7 @@ package com.example.photorama.heplerObjects
  * server requests.
  */
 
-class PostType(
+data class PostType(
     var id: String,
     var userId: String,
     var username: String,

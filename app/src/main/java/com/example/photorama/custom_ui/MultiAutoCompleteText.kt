@@ -4,14 +4,17 @@ import android.content.Context
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.AttributeSet
-import android.widget.MultiAutoCompleteTextView
-import androidx.appcompat.app.AppCompatActivity
-import com.example.photorama.SearchHashtagsByNameQuery
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
 import com.example.photorama.adapters.HashtagListAdapter
 import com.example.photorama.adapters.UserListAdapter
 import com.example.photorama.heplerObjects.AutoCompleteTokenizer
+import com.example.photorama.heplerObjects.HashtagType
 import com.example.photorama.heplerObjects.UserListItemType
-import com.example.photorama.networking.Queries
+import com.example.photorama.viewModels.SearchViewModel
+import com.example.photorama.viewModels.SearchViewModelFactory
 
 /**
  * @author Sultan
@@ -23,11 +26,73 @@ import com.example.photorama.networking.Queries
  */
 
 class MultiAutoCompleteText(context: Context, attributeSet: AttributeSet) :
-    MultiAutoCompleteTextView(context, attributeSet) {
+    androidx.appcompat.widget.AppCompatMultiAutoCompleteTextView(context, attributeSet) {
+
+    private val viewModel: SearchViewModel
+    private lateinit var hashtagArrayAdapter: HashtagListAdapter
+    private lateinit var userArrayAdapter: UserListAdapter
 
     init {
+        val factory = SearchViewModelFactory(context)
+        viewModel = ViewModelProvider(
+            context as ViewModelStoreOwner,
+            factory
+        ).get(SearchViewModel::class.java)
+
+        initAdapters()
+
+        initHashtagSearchObserver()
+        initUserSearchObserver()
+
         setTokenizer(AutoCompleteTokenizer())
         this.addTextChangedListener(checkForMentionsAndHashtags())
+    }
+
+    private fun initAdapters() {
+        hashtagArrayAdapter = HashtagListAdapter(
+            context,
+            ArrayList()
+        )
+
+        userArrayAdapter = UserListAdapter(context, ArrayList())
+    }
+
+    private fun initHashtagSearchObserver() {
+        viewModel.getHashtags().observe(context as LifecycleOwner, Observer { hashtags ->
+            val hashtagList = ArrayList<HashtagType>()
+
+            for (hashtag in hashtags) {
+                // only suggest hashtags that haven't been mentioned before
+                if (!this.text.contains(hashtag.hashtag)) {
+                    hashtagList.add(hashtag)
+                }
+            }
+
+            hashtagArrayAdapter.setValues(hashtagList)
+            hashtagArrayAdapter.notifyDataSetChanged()
+            this.setAdapter(hashtagArrayAdapter)
+            this.showDropDown()
+        })
+    }
+
+    private fun initUserSearchObserver() {
+        viewModel.getUsers().observe(context as LifecycleOwner, Observer { users ->
+            val usersList = ArrayList<UserListItemType>()
+
+            for (user in users) {
+                // only suggest users that haven't been mentioned before
+                if (!this.text.contains(user.username)) {
+                    val u =
+                        UserListItemType(user.userId, user.username, user.screenName, user.avatar)
+                    usersList.add(u)
+                }
+            }
+
+            userArrayAdapter.setValues(usersList)
+            userArrayAdapter.notifyDataSetChanged()
+            this.setAdapter(userArrayAdapter)
+            this.showDropDown()
+        })
     }
 
     /**
@@ -46,143 +111,55 @@ class MultiAutoCompleteText(context: Context, attributeSet: AttributeSet) :
                 count: Int
             ) {
                 // check that the text is not null, and is not empty
-                if (newText != null && newText.trim() != "") {
-                    // get the cursor's position
-                    val cursorPosition = selectionEnd
+                if (newText == null || newText.trim() == "") {
+                    return
+                }
+                // get the cursor's position
+                val cursorPosition = selectionEnd
 
-                    // check if it's larger than 1
-                    if (cursorPosition > 1) {
-                        // go from the cursor's position backwards, and look for
-                        // mention, or hashtag symbols
-                        for (i in (cursorPosition - 1) downTo 0) {
-                            // dismiss the dropdown if nothing was found, or if a space character
-                            // was encountered
-                            if (i == 0 && newText[i] != '@' && newText[i] != '#') {
-                                dismissDropDown()
-                                return
-                            }
+                // check if it's larger than 1
+                if (cursorPosition > 1) {
+                    // go from the cursor's position backwards, and look for
+                    // mention, or hashtag symbols
+                    for (i in (cursorPosition - 1) downTo 0) {
+                        // dismiss the dropdown if nothing was found, or if a space character
+                        // was encountered
+                        if (i == 0 && newText[i] != '@' && newText[i] != '#') {
+                            dismissDropDown()
+                            return
+                        }
 
-                            if (Character.isSpaceChar(newText[i])) {
-                                dismissDropDown()
-                                return
-                            }
+                        if (Character.isSpaceChar(newText[i])) {
+                            dismissDropDown()
+                            return
+                        }
 
-                            // otherwise if a mention symbol was found
-                            if (newText[i] == '@') {
-                                // get the username, and get suggestions from the server
-                                val mention =
-                                    newText.substring(
-                                        i + 1,
-                                        cursorPosition
-                                    )
-                                getUserSuggestions(mention)
-                                return
-                            }
+                        // otherwise if a mention symbol was found
+                        if (newText[i] == '@') {
+                            // get the username, and get suggestions from the server
+                            val mention =
+                                newText.substring(
+                                    i + 1,
+                                    cursorPosition
+                                )
+                            viewModel.searchUsers(mention)
+                            return
+                        }
 
-                            // or if a mention symbol was found
-                            if (newText[i] == '#') {
-                                // get the hashtag, and get suggestions from the server
-                                val hashtag =
-                                    newText.substring(
-                                        i + 1,
-                                        cursorPosition
-                                    )
-                                getHashtagSuggestions(hashtag)
-                                return
-                            }
+                        // or if a mention symbol was found
+                        if (newText[i] == '#') {
+                            // get the hashtag, and get suggestions from the server
+                            val hashtag =
+                                newText.substring(
+                                    i + 1,
+                                    cursorPosition
+                                )
+                            viewModel.searchHashtags(hashtag)
+                            return
                         }
                     }
                 }
             }
         })
-    }
-
-    /**
-     * gets user suggestions from the server.
-     * @param mention the account that the user may want to mention
-     */
-    private fun getUserSuggestions(mention: String) {
-        Queries(context)
-            .searchUserByName(mention,
-                onCompleted = { err, res ->
-                    if (err != null) {
-                        return@searchUserByName
-                    }
-
-                    if (res != null) {
-                        // get the list of suggestions
-                        val suggestions = res.searchUsersByName()
-                        val filteredSuggestions =
-                            ArrayList<UserListItemType>()
-                        val activity = context as AppCompatActivity
-
-                        for (item in suggestions!!) {
-                            // only store users, who haven't been mentioned before
-                            if (!text.contains(item.username()!!)) {
-                                val user =
-                                    UserListItemType(
-                                        item.id()!!,
-                                        item.username()!!,
-                                        item.screenName()!!,
-                                        item.avatar().toString()
-                                    )
-                                filteredSuggestions.add(user)
-                            }
-                        }
-
-                        activity.runOnUiThread {
-                            // set the adapter to display the suggestions,
-                            // and show the dropdown menu
-                            val adapter =
-                                UserListAdapter(
-                                    context,
-                                    filteredSuggestions
-                                )
-                            setAdapter(adapter)
-                            showDropDown()
-                        }
-                    }
-                })
-    }
-
-    /**
-     * gets hashtag suggestions from the server.
-     * @param hashtag the hashtag that the user may want to mention
-     */
-    private fun getHashtagSuggestions(hashtag: String) {
-        Queries(context)
-            .searchHashtags(hashtag,
-                onCompleted = { err, res ->
-                    if (err != null) {
-                        return@searchHashtags
-                    }
-
-                    if (res != null) {
-                        // get the list of suggestions
-                        val suggestions = res.searchHashtagsByName()
-                        val filteredSuggestions =
-                            ArrayList<SearchHashtagsByNameQuery.SearchHashtagsByName>()
-                        val activity = context as AppCompatActivity
-
-                        activity.runOnUiThread {
-                            for (item in suggestions!!) {
-                                // only store hashtags, who haven't been mentioned before
-                                if (!text.contains(item.hashtag()!!)) {
-                                    filteredSuggestions.add(item)
-                                }
-                            }
-
-                            // set the adapter to display the suggestions,
-                            // and show the dropdown menu
-                            val adapter =
-                                HashtagListAdapter(
-                                    context,
-                                    filteredSuggestions
-                                )
-                            setAdapter(adapter)
-                            showDropDown()
-                        }
-                    }
-                })
     }
 }

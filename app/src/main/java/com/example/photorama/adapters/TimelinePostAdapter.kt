@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.photorama.R
@@ -16,17 +17,15 @@ import com.example.photorama.heplerObjects.PostType
  */
 
 class TimelinePostAdapter(
-    context: Context,
+    private val context: Context,
     private var postList: ArrayList<PostType>
 ) :
     RecyclerView.Adapter<TimelinePostAdapter.MyHolder>() {
-    private val mContext = context
-
     class MyHolder(val view: View) : RecyclerView.ViewHolder(view)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MyHolder {
         val view =
-            LayoutInflater.from(mContext).inflate(R.layout.timeline_post_layout, parent, false)
+            LayoutInflater.from(context).inflate(R.layout.timeline_post_layout, parent, false)
         return MyHolder(view)
     }
 
@@ -42,9 +41,11 @@ class TimelinePostAdapter(
 
         // initialize a new post layout, and add it to the container
         val postLayout = PostLayout(
-            mContext,
+            context as AppCompatActivity,
+            context.applicationContext,
             postList[position]
         )
+
         container.addView(postLayout)
     }
 
@@ -59,9 +60,16 @@ class TimelinePostAdapter(
      * adds new timeline items to the adapter.
      * @param newPosts the list of new posts to add
      */
-    fun addItems(newPosts: ArrayList<PostType>) {
-        postList.addAll(newPosts)
-        notifyDataSetChanged()
+    fun setItems(newPosts: ArrayList<PostType>) {
+        postList = newPosts
+    }
+
+    /**
+     * adds new timeline item to the adapter.
+     * @param newPost the new post to add
+     */
+    fun addItem(newPost: PostType) {
+        postList.add(newPost)
     }
 
     /**
@@ -69,14 +77,12 @@ class TimelinePostAdapter(
      * has deleted the post.
      * @param postId the id of the post that the user has deleted
      */
-    fun removeItem(postId: String) {
-        for (i in 0 until postList.size) {
-            val item = postList[i]
-            if (item.id == postId) {
-                postList.removeAt(i)
-                notifyDataSetChanged()
-                break
-            }
-        }
+    fun removeItem(index: Int) {
+        postList.removeAt(index)
     }
+
+    /**
+     * returns the list of posts.
+     */
+    fun getItems() = postList
 }

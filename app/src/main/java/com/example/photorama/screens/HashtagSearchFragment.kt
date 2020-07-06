@@ -1,6 +1,5 @@
 package com.example.photorama.screens
 
-import com.example.photorama.adapters.HashtagListAdapter
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -10,10 +9,13 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.example.photorama.R
-import com.example.photorama.SearchHashtagsByNameQuery
+import com.example.photorama.adapters.HashtagListAdapter
+import com.example.photorama.viewModels.SearchViewModel
+import com.example.photorama.viewModels.SearchViewModelFactory
 import kotlinx.android.synthetic.main.user_search_fragment.*
-import com.example.photorama.networking.Queries
 
 /**
  * @author Sultan
@@ -21,6 +23,10 @@ import com.example.photorama.networking.Queries
  */
 
 class HashtagSearchFragment : Fragment() {
+
+    lateinit var viewModel: SearchViewModel
+    lateinit var arrayAdapter: HashtagListAdapter
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -32,8 +38,38 @@ class HashtagSearchFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        val factory = SearchViewModelFactory(requireActivity())
+        viewModel = ViewModelProvider(requireActivity(), factory).get(SearchViewModel::class.java)
+
+        initAdapter()
+        initHashtagSearchObserver()
+        initHashtagSearchErrorObserver()
+
         val container = view.parent as ViewGroup
         setOnChangeListener(container.rootView)
+    }
+
+    fun initAdapter() {
+        arrayAdapter = HashtagListAdapter(
+            this@HashtagSearchFragment.activity!!.applicationContext,
+            ArrayList()
+        )
+
+        search_results.adapter = arrayAdapter
+        setAdapterOnClickListener()
+    }
+
+    fun initHashtagSearchObserver() {
+        viewModel.getHashtags().observe(requireActivity(), Observer { hashtags ->
+            arrayAdapter.setValues(hashtags)
+            arrayAdapter.notifyDataSetChanged()
+        })
+    }
+
+    private fun initHashtagSearchErrorObserver() {
+        viewModel.getHashtagSearchErrorMessage().observe(requireActivity(), Observer { error ->
+            Toast.makeText(requireActivity(), error.getMessage(), Toast.LENGTH_LONG).show()
+        })
     }
 
     /**
@@ -48,37 +84,7 @@ class HashtagSearchFragment : Fragment() {
                 val text = search_bar.text.toString()
 
                 if (text.isNotEmpty() && !text.startsWith(" ")) {
-                    Queries(this@HashtagSearchFragment.activity!!).searchHashtags(
-                        text,
-                        onCompleted = { err, res ->
-                            if (err != null) {
-                                // display an error message if an error occurs
-                                this@HashtagSearchFragment.activity?.runOnUiThread {
-                                    Toast.makeText(
-                                        this@HashtagSearchFragment.activity!!.applicationContext,
-                                        "Couldn't fetch data from network",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                }
-                                return@searchHashtags
-                            }
-
-                            if (res != null) {
-                                if(res.searchHashtagsByName() == null) {
-                                    // display an error message if an error occurs
-                                    this@HashtagSearchFragment.activity?.runOnUiThread {
-                                        Toast.makeText(
-                                            this@HashtagSearchFragment.activity!!.applicationContext,
-                                            "Couldn't fetch data from network",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                    return@searchHashtags
-                                }
-                                val hashtags = res.searchHashtagsByName()!!
-                                updateUI(hashtags)
-                            }
-                        })
+                    viewModel.searchHashtags(text)
                 }
             }
 
@@ -101,33 +107,15 @@ class HashtagSearchFragment : Fragment() {
     }
 
     /**
-     * adds an adapter to the list view, in order to update the ui to display the search results.
-     * @param users the list of user accounts fetched from the server
-     */
-    private fun updateUI(hashtags: List<SearchHashtagsByNameQuery.SearchHashtagsByName>) {
-        val adapter = HashtagListAdapter(
-            this@HashtagSearchFragment.activity!!.applicationContext,
-            hashtags
-        )
-
-        this@HashtagSearchFragment.activity!!.runOnUiThread {
-            search_results.adapter = adapter
-        }
-
-        setAdapterOnClickListener(adapter)
-    }
-
-    /**
      * sets the onClick listener for the search list's custom adapter.
-     * @param adapter the custom adapter to add the listener to
      */
-    private fun setAdapterOnClickListener(adapter: HashtagListAdapter) {
+    private fun setAdapterOnClickListener() {
         search_results.setOnItemClickListener { _, _, position, _ ->
             // get the clicked hashtag's name, and pass it to the hashtag results fragment as args
-            val item = adapter.getItem(position)
+            val item = arrayAdapter.getItem(position)
             val fragment = HashtagPostsFragment()
             val args = Bundle()
-            args.putString("hashtag", item!!.hashtag().toString())
+            args.putString("hashtag", item!!.hashtag)
             fragment.arguments = args
 
             // replace the current fragment with the hashtags results fragment

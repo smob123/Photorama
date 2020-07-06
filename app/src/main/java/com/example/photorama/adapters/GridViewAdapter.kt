@@ -116,13 +116,34 @@ class GridViewAdapter(private val mContext: Context, private val posts: ArrayLis
     }
 
     /**
+     * sets the list of posts.
+     */
+    fun setItems(newPosts: ArrayList<PostType>) {
+        posts.clear()
+        posts.addAll(newPosts)
+    }
+
+    /**
      * adds new items to the adapter
      * @param newPosts the list of new posts to add
      */
     fun addItems(newPosts: List<PostType>) {
         posts.addAll(newPosts)
-        notifyDataSetChanged()
     }
+
+    /**
+     * this method is used by the child views, in order to notify the adapter that the user
+     * has deleted the post.
+     * @param postId the id of the post that the user has deleted
+     */
+    fun removeItem(index: Int) {
+        posts.removeAt(index)
+    }
+
+    /**
+     * returns the list of posts.
+     */
+    fun getItems() = posts
 
     override fun onViewRecycled(holder: MyHolder) {
         super.onViewRecycled(holder)
