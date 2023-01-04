@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#B79B7E</color>
+    <color name="colorPrimaryDark">#9C846B</color>
+    <color name="colorAccent">#D81B60</color>
+    <color name="white">#f9f9f9</color>
+    <color name="darkWhite">#f3f3f3</color>
+
+    <style name="splash_screen_them" parent="AppTheme">
+        <item name="android:windowBackground">@drawable/splash_screen_layout</item>
+    </style>
+
+    <color name="black_overlay">#66000000</color>
+</resources>

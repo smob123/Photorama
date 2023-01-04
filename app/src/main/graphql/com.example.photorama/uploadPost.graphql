@@ -1,0 +1,5 @@
+mutation uploadPost($userId: String!, $jwt: String!, $image: String!, $description: String) {
+  uploadPost(userId: $userId, jwt: $jwt, image: $image, description: $description) {
+     id
+  }
+}

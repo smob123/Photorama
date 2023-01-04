@@ -1,0 +1,3 @@
+mutation deleteAvatar($userId: String!, $jwt: String!) {
+  deleteAvatar(userId: $userId, jwt: $jwt)
+}

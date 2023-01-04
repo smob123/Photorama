@@ -1,0 +1,3 @@
+mutation followUser($userId: String!, $jwt: String!, $otherUserId: String!) {
+  follow(userId: $userId, jwt: $jwt, otherUserId: $otherUserId)
+}

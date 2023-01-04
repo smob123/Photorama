@@ -1,0 +1,12 @@
+mutation Login($username: String!, $password: String!, $firebaseToken: String!) {
+Login(username: $username, password: $password, firebaseToken: $firebaseToken) {
+    id
+    username
+    screenName
+    avatar
+    jwt
+    posts
+    following
+    followers
+  }
+}

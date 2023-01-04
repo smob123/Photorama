@@ -1,0 +1,14 @@
+query getPostsByHashtag($hashtag: String!) {
+getPostsByHashtag(hashtag: $hashtag) {
+    id
+    image
+    description
+    datetime
+    userId
+    username
+    userScreenName
+    userAvatar
+    likes
+    comments
+  }
+}

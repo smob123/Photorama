@@ -1,0 +1,14 @@
+query getUserTimeline($userId: String!, $jwt: String!, $startIndex: Int!, $endIndex: Int!){
+  getUserTimeline(userId: $userId, jwt: $jwt, startIndex: $startIndex, endIndex: $endIndex) {
+      id
+      userId
+      username
+      userScreenName
+      userAvatar
+      image
+      description
+      datetime
+      likes
+      comments
+  }
+}

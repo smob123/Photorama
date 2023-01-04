@@ -1,0 +1,3 @@
+mutation deletePost($userId: String!, $postId: String!, $jwt: String!) {
+  deletePost(userId: $userId, postId: $postId, jwt: $jwt)
+}

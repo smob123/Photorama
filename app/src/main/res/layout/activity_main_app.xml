@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainAppActivity">
+
+    <!-- main container -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <!-- bottom navigation bar -->
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottom_nav_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_gravity="bottom"
+            android:background="@color/white"
+            app:menu="@menu/bottom_nav_bar_menu" />
+
+        <!-- main frame, where the different com.example.photorama.screens will be displayed -->
+        <FrameLayout
+            android:id="@+id/main_frame"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_above="@id/bottom_nav_bar" />
+    </RelativeLayout>
+
+    <!-- FAB to add a new post -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/new_post_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="25dp"
+        android:backgroundTint="@color/colorPrimary"
+        android:clickable="true"
+        android:focusable="true"
+        android:src="@drawable/ic_add_white_24dp"
+        app:elevation="8dp"
+        app:layout_anchor="@id/bottom_nav_bar"
+        app:layout_anchorGravity="bottom|center"
+        app:rippleColor="@color/colorPrimaryDark"
+        app:tint="#efefef" />
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
